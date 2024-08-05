@@ -1,6 +1,7 @@
-<img src="resources/img/plugin-logo.png" width="64" height="64" align="left" style="margin-right: 30px">
+# Poll plugin for Craft CMS 3.x / 4.x
 
-# Poll plugin for Craft CMS 3.x
+**ABANDONED**
+Unfortunately, due too many breaking changes in Craft 5, there are no upgrade plans for this plugin to Craft 5.
 
 **For installation and usage please read the docs at [io.24hoursmedia.com](https://io.24hoursmedia.com/craftcms-poll)**
 
