@@ -22,7 +22,7 @@ use craft\models\Section_SiteSettings;
 use twentyfourhoursmedia\poll\models\SetupReport;
 use twentyfourhoursmedia\poll\Poll;
 use twentyfourhoursmedia\poll\services\traits\InstallServiceHelperTrait;
-
+use craft\enums\PropagationMethod;
 
 class InstallService extends Component
 {
@@ -54,12 +54,10 @@ class InstallService extends Component
         }
 
         return $this->enforceFieldTypeWithHandle($fieldHandle, function () use ($config, $fieldHandle) {
-            $fieldGroup = $this->enforceFieldGroupWithName($config[PollService::CFG_FIELD_GROUP_NAME]);
             $sectionHandle = $config[PollService::CFG_POLL_SECTION_HANDLE];
-            $section = Craft::$app->sections->getSectionByHandle($sectionHandle);
+            $section = Craft::$app->entries->getSectionByHandle($sectionHandle);
 
             $field = new Entries();
-            $field->groupId = $fieldGroup->id;
             $field->handle = $fieldHandle;
             $field->name = 'Select poll';
             $field->allowLimit = true;
@@ -161,7 +159,7 @@ class InstallService extends Component
                 );
 
                 // additional check
-                $section = Craft::$app->sections->getSectionByHandle($sectionHandle);
+                $section = Craft::$app->entries->getSectionByHandle($sectionHandle);
                 $hasMatrix = $this->ensureSectionHasAnswersMatrix($section, $validateOnly, $report) ? true : false;
                 if ($hasMatrix) {
                     $report->ok(
@@ -182,7 +180,7 @@ class InstallService extends Component
             }
         }
 
-        $section = Craft::$app->sections->getSectionByHandle($sectionHandle);
+        $section = Craft::$app->entries->getSectionByHandle($sectionHandle);
         if ($section) {
             return $this->ensureSectionHasAnswersMatrix($section, $validateOnly, $report);
         }
@@ -194,7 +192,7 @@ class InstallService extends Component
         $section->name = 'Polls';
         $section->type = Section::TYPE_CHANNEL;
         $section->enableVersioning = false;
-        $section->propagationMethod = Section::PROPAGATION_METHOD_ALL;
+        $section->propagationMethod = PropagationMethod::All;
 
         $allSiteSettings = [];
         foreach (Craft::$app->getSites()->getAllSites() as $site) {
@@ -206,7 +204,7 @@ class InstallService extends Component
             $allSiteSettings[$site->id] = $settings;
         }
         $section->setSiteSettings($allSiteSettings);
-        $success = Craft::$app->sections->saveSection($section, true);
+        $success = Craft::$app->entries->saveSection($section, true);
         if (!$success) {
 
             $report->danger("Couldn't save section {$sectionHandle}");
@@ -268,9 +266,9 @@ class InstallService extends Component
                 $matrix = new Matrix();
                 $matrix->handle = $fieldHandle;
                 $matrix->name = 'Poll answers';
-                $matrix->groupId = $this->enforceFieldGroupWithName($config[PollService::CFG_FIELD_GROUP_NAME])->id;
-                $matrix->propagationMethod = Matrix::PROPAGATION_METHOD_ALL;
-                $matrix->setBlockTypes([
+                $matrix->propagationMethod = PropagationMethod::All;
+                
+				/*$matrix->setBlockTypes([
                     'new1' => [
                         'name' => 'Answer',
                         'handle' => $config[PollService::CFG_MATRIXBLOCK_ANSWER_HANDLE],
@@ -282,7 +280,8 @@ class InstallService extends Component
                             ]
                         ]
                     ]
-                ]);
+                ]);*/
+				
                 return $matrix;
             }, function ($matrix) use (&$heap) {
         });

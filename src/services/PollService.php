@@ -23,6 +23,7 @@ use twentyfourhoursmedia\poll\Poll;
 use twentyfourhoursmedia\poll\records\PollAnswer;
 use yii\base\InvalidConfigException;
 use yii\web\Cookie;
+use craft\enums\PropagationMethod;
 
 /**
  * PollService Service
@@ -243,7 +244,7 @@ class PollService extends Component
     public function getPollSections() : array
     {
         $sections = array_map(function(string $handle) {
-            return Craft::$app->sections->getSectionByHandle($handle);
+            return Craft::$app->entries->getSectionByHandle($handle);
         }, [$this->getConfigOption(self::CFG_POLL_SECTION_HANDLE)]);
        return array_filter($sections);
     }
@@ -336,7 +337,7 @@ class PollService extends Component
         if (!$this->isAnAnswerMatrix($matrix)) {
             throw new \LogicException("The field to validate is not recognized as an answer matrix field!");
         }
-        if ($matrix->propagationMethod === Matrix::PROPAGATION_METHOD_NONE) {
+        if ($matrix->propagationMethod === PropagationMethod::None) {
             $err = "You cannot set the propagation method to {$matrix->propagationMethod} for a Poll answers field";
             Craft::$app->session->setFlash('notice', $err);
             return false;

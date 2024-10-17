@@ -62,7 +62,8 @@ class PollQuery extends EntryQuery
     /**
      * @param Section|string|string[]|null $value
      */
-    public function section(mixed $value): EntryQuery {
+//    public function section(mixed $value): EntryQuery {
+	public function section(mixed $value): static {
         // reset section ids to limit only to poll sections
         $this->resetSectionIds();
         return $this;
