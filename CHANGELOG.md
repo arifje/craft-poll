@@ -1,5 +1,18 @@
 # Poll Changelog
 
+## 3.0.0 - Craft 5 compatibility
+
+### Changed
+- Craft CMS 5.x compatibility (requires PHP 8.2+)
+- Replace `craft\elements\MatrixBlock` references with `craft\elements\Entry` (Matrix blocks are now nested entries in Craft 5)
+- Replace `craft\services\Sections` with `craft\services\Entries` (`Craft::$app->entries`)
+- Replace `Section::PROPAGATION_METHOD_ALL` and `Matrix::PROPAGATION_METHOD_NONE` with `craft\enums\PropagationMethod` enum
+- Replace `Utilities::EVENT_REGISTER_UTILITY_TYPES` with `Utilities::EVENT_REGISTER_UTILITIES`
+- Remove field group support (field groups were removed in Craft 5)
+- Update `InstallService` to create Matrix entry types (`craft\models\EntryType`) instead of block types
+- Fix return type declaration in `Poll::createSettingsModel()`
+- Remove stale `commentswork` dependency import from `elements/Poll.php`
+
 ## 2.1.0
 
 ### Fixed

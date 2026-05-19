@@ -13,21 +13,18 @@ use craft\elements\db\ElementQueryInterface;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use craft\helpers\UrlHelper;
-use twentyfourhoursmedia\commentswork\elements\db\CommentQuery;
 use twentyfourhoursmedia\poll\elements\actions\CreateReport;
 use twentyfourhoursmedia\poll\elements\db\PollQuery;
 
 class Poll extends Entry
 {
 
-    protected static function defineActions(string $source = null): array
+    protected static function defineActions(?string $source = null): array
     {
         $actions = [];
-        // Edit
         $actions[] = Craft::$app->getElements()->createAction(
             [
                 'type' => CreateReport::class,
-                //'label' => Craft::t('poll', 'Reports'),
             ]
         );
         return $actions;
@@ -51,16 +48,12 @@ class Poll extends Entry
         return false;
     }
 
-    /**
-     * Creates an [[ElementQueryInterface]] instance for query purpose.
-     * @return CommentQuery.
-     */
     public static function find(): EntryQuery
     {
         return new PollQuery(static::class);
     }
 
-    protected static function defineSources(string $context = null): array
+    protected static function defineSources(?string $context = null): array
     {
         $sources = [];
 

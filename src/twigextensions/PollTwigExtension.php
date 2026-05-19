@@ -10,10 +10,7 @@
 
 namespace twentyfourhoursmedia\poll\twigextensions;
 
-use craft\elements\db\MatrixBlockQuery;
 use craft\elements\Entry;
-use craft\elements\MatrixBlock;
-use craft\models\MatrixBlockType;
 use twentyfourhoursmedia\poll\models\PollResults;
 use twentyfourhoursmedia\poll\Poll;
 use Twig\Extension\AbstractExtension;
@@ -24,12 +21,6 @@ use Craft;
 use twentyfourhoursmedia\poll\services\PollService;
 
 /**
- * Twig can be extended in many ways; you can add extra tags, filters, tests, operators,
- * global variables, and functions. You can even extend the parser itself with
- * node visitors.
- *
- * http://twig.sensiolabs.org/doc/advanced.html
- *
  * @author    24hoursmedia
  * @package   Poll
  * @since     1.0.0
@@ -50,9 +41,7 @@ class PollTwigExtension extends AbstractExtension
     }
 
     /**
-     * Returns an array of Twig filters, used in Twig templates via:
-     *
-     *      {{ 'something' | someFilter }}
+     * Returns an array of Twig filters
      *
      * @return array
      */
@@ -66,11 +55,9 @@ class PollTwigExtension extends AbstractExtension
     }
 
     /**
-     * Returns an array of Twig functions, used in Twig templates via:
+     * Returns an array of Twig functions
      *
-     *      {% set this = someFunction('something') %}
-     *
-    * @return array
+     * @return array
      */
     public function getFunctions()
     {
@@ -88,8 +75,11 @@ class PollTwigExtension extends AbstractExtension
     }
 
     /**
+     * Renders the hidden input fields required for a poll form submission.
+     * In Craft 5, Matrix field values return Entry objects (nested entries).
+     *
      * @param Entry $poll
-     * @param MatrixBlockQuery null $matrix
+     * @param \craft\elements\db\EntryQuery|null $matrix
      * @return string
      * @throws \craft\errors\SiteNotFoundException
      */
@@ -99,11 +89,16 @@ class PollTwigExtension extends AbstractExtension
 
         $fieldId = null;
         if ($matrix) {
-            $fieldId = $matrix->one()->fieldId;
-            if (is_array($fieldId)) {
-                $fieldId = array_shift($fieldId);
+            $firstEntry = $matrix->one();
+            if ($firstEntry) {
+                $fieldId = $firstEntry->fieldId;
+                if (is_array($fieldId)) {
+                    $fieldId = array_shift($fieldId);
+                }
+                $field = Craft::$app->fields->getFieldById($fieldId);
+            } else {
+                $field = null;
             }
-            $field = Craft::$app->fields->getFieldById($fieldId);
         } else {
             $field = Craft::$app->fields->getFieldByHandle(
                 $service->getConfigOption(PollService::CFG_FIELD_ANSWER_MATRIX_HANDLE)
@@ -124,27 +119,38 @@ HTML;
     }
 
     /**
-     * Generates a field name for a poll answer
-     * @param MatrixBlockType $answer
+     * Generates a field name for a poll answer.
+     * In Craft 5, answer blocks are nested Entry elements.
+     *
+     * @param Entry $poll
+     * @param Entry $answer
      * @return string
      */
-    public function generatePollAnswerFieldName(Entry $poll, MatrixBlock $answer): string
+    public function generatePollAnswerFieldName(Entry $poll, Entry $answer): string
     {
         $service = Poll::$plugin->pollService;
         return "{$service->getConfigOption('CFG_FORM_POLLANSWER_FIELDNAME')}[{$poll->uid}]";
     }
 
-    public function generatePollAnswerTextFieldName(Entry $poll, MatrixBlock $answer) : string {
+    /**
+     * @param Entry $poll
+     * @param Entry $answer
+     * @return string
+     */
+    public function generatePollAnswerTextFieldName(Entry $poll, Entry $answer) : string {
         $service = Poll::$plugin->pollService;
         return "{$service->getConfigOption('CFG_FORM_POLLANSWERTEXT_FIELDNAME')}[{$poll->uid}][$answer->uid]";
     }
 
     /**
-     * Generates a field value for a poll answer
-     * @param MatrixBlockType $answer
+     * Generates a field value for a poll answer.
+     * In Craft 5, answer blocks are nested Entry elements.
+     *
+     * @param Entry $poll
+     * @param Entry $answer
      * @return string
      */
-    public function generatePollAnswerFieldValue(Entry $poll, MatrixBlock $answer): string
+    public function generatePollAnswerFieldValue(Entry $poll, Entry $answer): string
     {
         return (string)($answer->uid);
     }
@@ -184,7 +190,7 @@ HTML;
     }
 
     /**
-     * Returns a poll regardless wether it is enabled or not
+     * Returns a poll regardless whether it is enabled or not
      * @param $id
      * @return Entry|null
      */

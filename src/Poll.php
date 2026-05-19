@@ -17,7 +17,9 @@ use twentyfourhoursmedia\poll\services\Facade;
 use twentyfourhoursmedia\poll\services\PollService;
 use twentyfourhoursmedia\poll\services\ResultService;
 use yii\base\Event;
+use craft\base\Model;
 use craft\elements\Entry;
+use craft\enums\PropagationMethod;
 use craft\fields\Matrix;
 use craft\base\Plugin;
 use craft\services\Plugins;
@@ -131,7 +133,7 @@ class Poll extends Plugin
         // Register our utilities
         Event::on(
             Utilities::class,
-            Utilities::EVENT_REGISTER_UTILITY_TYPES,
+            Utilities::EVENT_REGISTER_UTILITIES,
             function (RegisterComponentTypesEvent $event) {
                 $event->types[] = PollUtilityUtility::class;
             }
@@ -224,7 +226,7 @@ HTML;
      *
      * @return \craft\base\Model|null
      */
-    protected function createSettingsModel(): ?craft\base\Model
+    protected function createSettingsModel(): ?Model
     {
         return new Settings();
     }
