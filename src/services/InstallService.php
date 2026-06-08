@@ -103,30 +103,31 @@ class InstallService extends Component
                 $report->warn("Entry type in section {$sectionHandle} does not contain matrix field with handle {$fieldHandle}");
                 return false;
             } else {
-
                 $matrix = Craft::$app->fields->getFieldByHandle($fieldHandle);
-                $tabs = $type->getFieldLayout()->getTabs();
+                $fieldLayout = $type->getFieldLayout();
+
+                $tabs = $fieldLayout->getTabs();
                 $tab = $tabs[0] ?? null;
                 if (!$tab) {
-                    $tab = new FieldLayoutTab();
-                    $tab->name = 'Poll';
-                    $type->getFieldLayout()->setTabs([$tab]);
+                    $tab = new FieldLayoutTab(['name' => 'Poll']);
+                    // setLayout() must be called before setElements()
+                    $tab->setLayout($fieldLayout);
+                    $tabs = [$tab];
                 }
 
-                $newElement = [
-                    'type' => CustomField::class,
-                    'fieldUid' => $matrix->uid,
-                    'required' => false,
-                ];
-                $tab->setElements(array_merge($tab->getElements(), ['new1' => $newElement]));
+                $tab->setElements(array_merge(
+                    $tab->getElements(),
+                    [new CustomField($matrix)]
+                ));
+                $fieldLayout->setTabs($tabs);
+                $type->setFieldLayout($fieldLayout);
 
-                $tabs[0] = $tab;
-                $type->getFieldLayout()->setTabs($tabs);
-                $success = Craft::$app->fields->saveLayout($type->getFieldLayout());
+                // In Craft 5, entry type field layouts must be saved via saveEntryType()
+                $success = Craft::$app->entries->saveEntryType($type);
                 if ($success) {
-                    $report->ok("Created in Section {$sectionHandle}: entry type with handle {$fieldHandle}");
+                    $report->ok("Added poll answers matrix to entry type in section {$sectionHandle}");
                 } else {
-                    $report->danger("FAILED: Created in Section {$sectionHandle}: entry type with handle {$fieldHandle}");
+                    $report->danger("FAILED: Could not add poll answers matrix to entry type in section {$sectionHandle}");
                 }
                 return $success;
             }
