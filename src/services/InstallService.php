@@ -194,6 +194,13 @@ class InstallService extends Component
         $section->enableVersioning = false;
         $section->propagationMethod = PropagationMethod::All;
 
+        // Craft 5 requires at least one entry type on the section before saving
+        $defaultEntryType = new EntryType();
+        $defaultEntryType->name = 'Poll';
+        $defaultEntryType->handle = 'poll';
+        $defaultEntryType->hasTitleField = true;
+        $section->setEntryTypes([$defaultEntryType]);
+
         $allSiteSettings = [];
         foreach (Craft::$app->getSites()->getAllSites() as $site) {
             $settings = new Section_SiteSettings();
