@@ -268,6 +268,8 @@ class InstallService extends Component
 
                 $fieldLayout = new FieldLayout();
                 $tab = new FieldLayoutTab(['name' => 'Content', 'sortOrder' => 1]);
+                // setLayout() must be called before setElements() so the tab knows its parent layout
+                $tab->setLayout($fieldLayout);
                 $tab->setElements([new CustomField($labelField)]);
                 $fieldLayout->setTabs([$tab]);
                 $entryType->setFieldLayout($fieldLayout);
