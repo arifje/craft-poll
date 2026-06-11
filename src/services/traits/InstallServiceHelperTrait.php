@@ -7,33 +7,10 @@
 
 namespace twentyfourhoursmedia\poll\services\traits;
 use Craft;
-use craft\models\FieldGroup;
 
 trait InstallServiceHelperTrait
 {
 
-
-    /**
-     * Gets a field group to install fields in (defaults to first)
-     *
-     * @param string|null $name
-     * @return FieldGroup | null
-     * @throws \Throwable
-     */
-    protected function enforceFieldGroupWithName(string $name = null)
-    {
-
-        $groups = Craft::$app->fields->getAllGroups();
-        foreach ($groups as $group) {
-            if (strtolower($group->name) === strtolower($name)) {
-                return $group;
-            }
-        }
-        $group = new FieldGroup();
-        $group->name = $name;
-        $success = Craft::$app->fields->saveGroup($group, true);
-        return $success ? $group : false;
-    }
 
     /**
      * @param string $handle
@@ -51,7 +28,7 @@ trait InstallServiceHelperTrait
      */
     protected function hasSectionWithHandle(string $handle): bool
     {
-        $section = Craft::$app->sections->getSectionByHandle($handle);
+        $section = Craft::$app->getEntries()->getSectionByHandle($handle);
         return $section ? true : false;
     }
 

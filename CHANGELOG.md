@@ -1,5 +1,13 @@
 # Poll Changelog
 
+## 3.0.0
+
+### Changed
+- Added Craft CMS 5 compatibility and raised requirements to PHP 8.2+ and Craft 5.
+- Updated Matrix answer handling for Craft 5 nested entries instead of Matrix blocks.
+- Updated setup to use Craft 5 entry type, section, field, and utility APIs.
+- Updated README installation and setup notes for the Craft 5 fork.
+
 ## 2.1.0
 
 ### Fixed

@@ -62,9 +62,14 @@ class PollUtility extends Utility
      *
      * @return string|null The path to the utility SVG icon
      */
-    public static function iconPath(): ?string
+    public static function icon(): ?string
     {
         return Craft::getAlias("@twentyfourhoursmedia/poll/assetbundles/pollutilityutility/dist/img/PollUtility-icon.svg");
+    }
+
+    public static function iconPath(): ?string
+    {
+        return self::icon();
     }
 
     /**

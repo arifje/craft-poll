@@ -7,7 +7,6 @@
 namespace twentyfourhoursmedia\poll\events;
 use craft\elements\Entry;
 use craft\elements\User;
-use craft\records\MatrixBlock;
 use yii\base\Event;
 
 /**
@@ -31,7 +30,7 @@ class PollSubmittedEvent extends Event
     public $user;
 
     /**
-     * @var MatrixBlock[]
+     * @var Entry[]
      */
     public $answers = [];
 

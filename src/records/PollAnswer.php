@@ -43,9 +43,8 @@ class PollAnswer extends ActiveRecord
     }
 
     /**
-     * Replaces static::getDb()->schema->insert(static::tableName(), $values)
-     * that contains a createCommand statement without the option to exclude audit columns.
-     * We want audit columns (dateUpdated, uid) excluded.
+     * Replaces static::getDb()->schema->insert(static::tableName(), $values).
+     * The poll answer table only has dateCreated from Craft's audit columns.
      *
      * @param $table
      * @param $values
@@ -56,8 +55,7 @@ class PollAnswer extends ActiveRecord
     private function customDbSchemaInsert($table, $columns) {
         $context = static::getDb()->schema;
 
-        // what really modified is the false flag.
-        $command = $context->db->createCommand()->insert($table, $columns, false);
+        $command = $context->db->createCommand()->insert($table, $columns);
         if (!$command->execute()) {
             return false;
         }

@@ -11,6 +11,7 @@
 namespace twentyfourhoursmedia\poll;
 
 use Craft;
+use craft\base\Model;
 use craft\helpers\UrlHelper;
 use craft\services\Elements;
 use twentyfourhoursmedia\poll\services\Facade;
@@ -131,7 +132,7 @@ class Poll extends Plugin
         // Register our utilities
         Event::on(
             Utilities::class,
-            Utilities::EVENT_REGISTER_UTILITY_TYPES,
+            Utilities::EVENT_REGISTER_UTILITIES,
             function (RegisterComponentTypesEvent $event) {
                 $event->types[] = PollUtilityUtility::class;
             }
@@ -224,7 +225,7 @@ HTML;
      *
      * @return \craft\base\Model|null
      */
-    protected function createSettingsModel(): ?craft\base\Model
+    protected function createSettingsModel(): ?Model
     {
         return new Settings();
     }

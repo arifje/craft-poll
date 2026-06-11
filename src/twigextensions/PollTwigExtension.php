@@ -10,10 +10,8 @@
 
 namespace twentyfourhoursmedia\poll\twigextensions;
 
-use craft\elements\db\MatrixBlockQuery;
+use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
-use craft\elements\MatrixBlock;
-use craft\models\MatrixBlockType;
 use twentyfourhoursmedia\poll\models\PollResults;
 use twentyfourhoursmedia\poll\Poll;
 use Twig\Extension\AbstractExtension;
@@ -89,7 +87,7 @@ class PollTwigExtension extends AbstractExtension
 
     /**
      * @param Entry $poll
-     * @param MatrixBlockQuery null $matrix
+     * @param EntryQuery|null $matrix
      * @return string
      * @throws \craft\errors\SiteNotFoundException
      */
@@ -99,12 +97,17 @@ class PollTwigExtension extends AbstractExtension
 
         $fieldId = null;
         if ($matrix) {
-            $fieldId = $matrix->one()->fieldId;
-            if (is_array($fieldId)) {
-                $fieldId = array_shift($fieldId);
+            $answer = $matrix->one();
+            if ($answer) {
+                $fieldId = $answer->fieldId;
+                if (is_array($fieldId)) {
+                    $fieldId = array_shift($fieldId);
+                }
+                $field = Craft::$app->fields->getFieldById($fieldId);
             }
-            $field = Craft::$app->fields->getFieldById($fieldId);
-        } else {
+        }
+
+        if (!isset($field)) {
             $field = Craft::$app->fields->getFieldByHandle(
                 $service->getConfigOption(PollService::CFG_FIELD_ANSWER_MATRIX_HANDLE)
             );
@@ -125,26 +128,26 @@ HTML;
 
     /**
      * Generates a field name for a poll answer
-     * @param MatrixBlockType $answer
+     * @param Entry $answer
      * @return string
      */
-    public function generatePollAnswerFieldName(Entry $poll, MatrixBlock $answer): string
+    public function generatePollAnswerFieldName(Entry $poll, Entry $answer): string
     {
         $service = Poll::$plugin->pollService;
         return "{$service->getConfigOption('CFG_FORM_POLLANSWER_FIELDNAME')}[{$poll->uid}]";
     }
 
-    public function generatePollAnswerTextFieldName(Entry $poll, MatrixBlock $answer) : string {
+    public function generatePollAnswerTextFieldName(Entry $poll, Entry $answer) : string {
         $service = Poll::$plugin->pollService;
         return "{$service->getConfigOption('CFG_FORM_POLLANSWERTEXT_FIELDNAME')}[{$poll->uid}][$answer->uid]";
     }
 
     /**
      * Generates a field value for a poll answer
-     * @param MatrixBlockType $answer
+     * @param Entry $answer
      * @return string
      */
-    public function generatePollAnswerFieldValue(Entry $poll, MatrixBlock $answer): string
+    public function generatePollAnswerFieldValue(Entry $poll, Entry $answer): string
     {
         return (string)($answer->uid);
     }
@@ -181,6 +184,11 @@ HTML;
     {
         return uniqid($prefix, false);
 
+    }
+
+    public function createUniqid($prefix = null)
+    {
+        return $this->createUid($prefix);
     }
 
     /**

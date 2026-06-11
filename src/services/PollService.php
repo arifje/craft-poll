@@ -12,9 +12,8 @@ namespace twentyfourhoursmedia\poll\services;
 
 use Craft;
 use yii\base\Component;
-use craft\elements\db\MatrixBlockQuery;
 use craft\elements\Entry;
-use craft\elements\MatrixBlock;
+use craft\enums\PropagationMethod;
 use craft\fields\Matrix;
 use craft\models\Section;
 use twentyfourhoursmedia\poll\events\PollEvents;
@@ -45,6 +44,7 @@ class PollService extends Component
     public const CFG_FIELD_GROUP_NAME = 'CFG_FIELD_GROUP_NAME';
     public const CFG_FIELD_SELECT_POLL_HANDLE = 'CFG_FIELD_SELECT_POLL_HANDLE';
     public const CFG_FIELD_ANSWER_MATRIX_HANDLE = 'CFG_FIELD_ANSWER_MATRIX_HANDLE';
+    public const CFG_FIELD_ANSWER_LABEL_HANDLE = 'CFG_FIELD_ANSWER_LABEL_HANDLE';
     public const CFG_MATRIXBLOCK_ANSWER_HANDLE = 'CFG_MATRIXBLOCK_ANSWER_HANDLE';
 
     public const CFG_FORM_POLLID_FIELDNAME = "CFG_FORM_POLLID_FIELDNAME";
@@ -60,7 +60,8 @@ class PollService extends Component
         // section, fieldtype, .. handles
         self::CFG_POLL_SECTION_HANDLE => 'pollSection',
         self::CFG_FIELD_ANSWER_MATRIX_HANDLE => 'pollAnswerMatrix',
-        self::CFG_MATRIXBLOCK_ANSWER_HANDLE => 'answer',
+        self::CFG_FIELD_ANSWER_LABEL_HANDLE => 'pollAnswerLabel',
+        self::CFG_MATRIXBLOCK_ANSWER_HANDLE => 'pollAnswer',
         self::CFG_FIELD_SELECT_POLL_HANDLE => 'selectedPoll',
 
         // fieldgroup where polls are placed in
@@ -124,7 +125,7 @@ class PollService extends Component
 
     public function getCookiePollIds()
     {
-        $participatedPolls = explode(',', Craft::$app->request->cookies['_pollids'] ?? '');
+        $participatedPolls = explode(',', Craft::$app->request->getCookies()->getValue('_pollids', ''));
         $participatedPolls = array_map('intval', $participatedPolls);
         $participatedPolls = array_filter($participatedPolls);
         return $participatedPolls;
@@ -174,12 +175,12 @@ class PollService extends Component
     {
         $answerMatrix = $poll->getFieldValue($this->getConfigOption(self::CFG_FIELD_ANSWER_MATRIX_HANDLE));
         $answerTexts = is_array($answerTexts) ? $answerTexts : [];
-        /* @var MatrixBlockQuery $answerMatrix */
+        /* @var \craft\elements\db\EntryQuery $answerMatrix */
         $answers = $answerMatrix->all();
         $answers = array_filter($answers, function ($a) use ($answerUids) {
             return in_array($a->uid, $answerUids, true);
         });
-        /* @var $answers \craft\elements\MatrixBlock[] */
+        /* @var $answers Entry[] */
         if (count($answers) !== 1) {
             return false;
         }
@@ -243,14 +244,14 @@ class PollService extends Component
     public function getPollSections() : array
     {
         $sections = array_map(function(string $handle) {
-            return Craft::$app->sections->getSectionByHandle($handle);
+            return Craft::$app->getEntries()->getSectionByHandle($handle);
         }, [$this->getConfigOption(self::CFG_POLL_SECTION_HANDLE)]);
        return array_filter($sections);
     }
 
     /**
      * @param $pollOrPollId
-     * @return MatrixBlock[]
+     * @return Entry[]
      */
     public function getAnswers($pollOrPollId)
     {
@@ -336,8 +337,8 @@ class PollService extends Component
         if (!$this->isAnAnswerMatrix($matrix)) {
             throw new \LogicException("The field to validate is not recognized as an answer matrix field!");
         }
-        if ($matrix->propagationMethod === Matrix::PROPAGATION_METHOD_NONE) {
-            $err = "You cannot set the propagation method to {$matrix->propagationMethod} for a Poll answers field";
+        if ($matrix->propagationMethod === PropagationMethod::None) {
+            $err = "You cannot set the propagation method to {$matrix->propagationMethod->value} for a Poll answers field";
             Craft::$app->session->setFlash('notice', $err);
             return false;
         }
