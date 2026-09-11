@@ -1,5 +1,10 @@
 # Poll Changelog
 
+## 3.1.1 - 2026-09-11
+
+### Changed
+- The `master` branch is retired; `v5` is the Craft 5 line. The plugin's changelog URL now follows the repository's default branch.
+
 ## 3.1.0 - 2026-09-11
 
 Craft 5 compatibility audit (tested against Craft 5.11.1, PHP 8.2, PHPStan level 5 and the Craft 5 Rector set).
