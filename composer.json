@@ -1,6 +1,6 @@
 {
     "name": "twentyfourhoursmedia/poll",
-    "description": "poll plugin for Craft CMS 5.x",
+    "description": "Poll plugin for Craft CMS 5",
     "type": "craft-plugin",
     "version": "3.0.0",
     "keywords": [
@@ -12,7 +12,7 @@
     ],
     "support": {
         "docs": "https://io.24hoursmedia.com/craftcms-poll",
-        "issues": "https://github.com/24hoursmedia-craftcms/poll/issues"
+        "issues": "https://github.com/arifje/craft-poll/issues"
     },
     "license": "proprietary",
     "authors": [
@@ -35,7 +35,7 @@
         "handle": "poll",
         "hasCpSettings": true,
         "hasCpSection": true,
-        "changelogUrl": "https://github.com/24hoursmedia-craftcms/poll/blob/master/CHANGELOG.md",
+        "changelogUrl": "https://github.com/arifje/craft-poll/blob/master/CHANGELOG.md",
         "components": {
             "pollService": "twentyfourhoursmedia\\poll\\services\\PollService"
         },

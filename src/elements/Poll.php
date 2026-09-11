@@ -19,12 +19,14 @@ use twentyfourhoursmedia\poll\elements\db\PollQuery;
 class Poll extends Entry
 {
 
-    protected static function defineActions(?string $source = null): array
+    protected static function defineActions(string $source): array
     {
         $actions = [];
+        // Edit
         $actions[] = Craft::$app->getElements()->createAction(
             [
                 'type' => CreateReport::class,
+                //'label' => Craft::t('poll', 'Reports'),
             ]
         );
         return $actions;
@@ -48,12 +50,16 @@ class Poll extends Entry
         return false;
     }
 
+    /**
+     * Creates an [[ElementQueryInterface]] instance for query purpose.
+     * @return PollQuery
+     */
     public static function find(): EntryQuery
     {
         return new PollQuery(static::class);
     }
 
-    protected static function defineSources(?string $context = null): array
+    protected static function defineSources(string $context): array
     {
         $sources = [];
 

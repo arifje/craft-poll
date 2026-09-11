@@ -11,6 +11,7 @@
 namespace twentyfourhoursmedia\poll;
 
 use Craft;
+use craft\base\Model;
 use craft\helpers\UrlHelper;
 use craft\services\Elements;
 use twentyfourhoursmedia\poll\services\Facade;

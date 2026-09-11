@@ -8,7 +8,7 @@
 namespace twentyfourhoursmedia\poll\models;
 
 
-use craft\elements\MatrixBlock;
+use craft\elements\Entry;
 use craft\web\User;
 
 class ResultByAnswer
@@ -25,7 +25,7 @@ class ResultByAnswer
     public $percent = null;
 
     /**
-     * @var MatrixBlock
+     * @var Entry
      */
     public $answer;
 

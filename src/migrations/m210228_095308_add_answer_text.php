@@ -15,6 +15,10 @@ class m210228_095308_add_answer_text extends Migration
      */
     public function safeUp()
     {
+        if ($this->db->columnExists('{{%poll_pollanswer}}', 'answerText')) {
+            return;
+        }
+
         $this->addColumn(
             '{{%poll_pollanswer}}',
             'answerText',
@@ -27,6 +31,10 @@ class m210228_095308_add_answer_text extends Migration
      */
     public function safeDown()
     {
+        if (!$this->db->columnExists('{{%poll_pollanswer}}', 'answerText')) {
+            return;
+        }
+
         $this->dropColumn('{{%poll_pollanswer}}', 'answerText');
     }
 }

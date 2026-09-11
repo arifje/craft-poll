@@ -11,6 +11,7 @@ use Craft;
 trait InstallServiceHelperTrait
 {
 
+
     /**
      * @param string $handle
      * @return bool
@@ -27,7 +28,7 @@ trait InstallServiceHelperTrait
      */
     protected function hasSectionWithHandle(string $handle): bool
     {
-        $section = Craft::$app->entries->getSectionByHandle($handle);
+        $section = Craft::$app->getEntries()->getSectionByHandle($handle);
         return $section ? true : false;
     }
 
@@ -35,8 +36,8 @@ trait InstallServiceHelperTrait
      * Makes sure a field with a handle exists, if not retrieves the field from the callback and create it
      *
      * @param $handle
-     * @param callable $createCallback     callback that should return a new field if it does not exist
-     * @param callable $createdCallback    callback after field is created
+     * @param callable $createCallback                         callback that should return a new field if it does not exist
+     * @param callable $createdCallback                        callback after field is created, wi
      * @return bool|\craft\base\FieldInterface|null
      * @throws \Throwable
      */
