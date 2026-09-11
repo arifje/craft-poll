@@ -54,9 +54,13 @@ class InstallService extends Component
             }
         }
 
-        return $this->enforceFieldTypeWithHandle($fieldHandle, function () use ($config, $fieldHandle) {
+        return $this->enforceFieldTypeWithHandle($fieldHandle, function () use ($config, $fieldHandle, $report) {
             $sectionHandle = $config[PollService::CFG_POLL_SECTION_HANDLE];
             $section = Craft::$app->getEntries()->getSectionByHandle($sectionHandle);
+            if (!$section) {
+                $report->danger("Cannot create field {$fieldHandle}: section {$sectionHandle} does not exist");
+                return null;
+            }
 
             $field = new Entries();
             $field->handle = $fieldHandle;
@@ -140,6 +144,9 @@ class InstallService extends Component
         $entryType = Craft::$app->getEntries()->getEntryTypeByHandle($config[PollService::CFG_MATRIXBLOCK_ANSWER_HANDLE]) ?? new EntryType();
         $entryType->name = 'Answer';
         $entryType->handle = $config[PollService::CFG_MATRIXBLOCK_ANSWER_HANDLE];
+        // answers have no title of their own; derive it from the label so cards/chips in the CP are readable
+        $entryType->hasTitleField = false;
+        $entryType->titleFormat = '{' . PollService::ANSWER_LABEL_HANDLE . '}';
         $entryType->showSlugField = false;
         $entryType->showStatusField = true;
         $entryType->setFieldLayout($fieldLayout);
@@ -168,9 +175,7 @@ class InstallService extends Component
 
         if (!$type) {
             $report->warn('No entry type for section ' . $sectionHandle . ' found.');
-            if ($validateOnly) {
-                return false;
-            }
+            return false;
         }
 
         $matrixField = $type->getFieldLayout()->getFieldByHandle($fieldHandle);
@@ -349,6 +354,8 @@ class InstallService extends Component
                 $matrix->handle = $fieldHandle;
                 $matrix->name = 'Poll answers';
                 $matrix->propagationMethod = PropagationMethod::All;
+                $matrix->viewMode = Matrix::VIEW_MODE_BLOCKS;
+                $matrix->createButtonLabel = 'Add an answer';
                 $matrix->setEntryTypes([$entryType]);
                 return $matrix;
             }
@@ -362,13 +369,19 @@ class InstallService extends Component
      * @throws \Throwable
      * @throws \craft\errors\SectionNotFoundException
      */
-    private function apply(bool $validateOnly, SetupReport $setupReport)
+    private function apply(bool $validateOnly, SetupReport $setupReport): bool
     {
-        $success = true;
-        $success = ($success || $validateOnly) && $this->ensureMatrix($validateOnly, $setupReport);
-        $success = ($success || $validateOnly) && $this->ensureSection($validateOnly, $setupReport);
-        $success = ($success || $validateOnly) && $this->ensureSelectPollField($validateOnly, $setupReport);
-        return $success;
+        // When validating, run all checks and report on each of them.
+        // When setting up, stop after the first failure as later steps depend on earlier ones.
+        $results = [];
+        $results[] = $ok = (bool)$this->ensureMatrix($validateOnly, $setupReport);
+        if ($ok || $validateOnly) {
+            $results[] = $ok = (bool)$this->ensureSection($validateOnly, $setupReport);
+        }
+        if ($ok || $validateOnly) {
+            $results[] = (bool)$this->ensureSelectPollField($validateOnly, $setupReport);
+        }
+        return !in_array(false, $results, true);
     }
 
     /**
@@ -378,13 +391,12 @@ class InstallService extends Component
      * @throws \Throwable
      * @throws \craft\errors\SectionNotFoundException
      */
-    public function check(?SetupReport $setupReport = null)
+    public function check(?SetupReport $setupReport = null): bool
     {
         if (!$setupReport) {
             $setupReport = new SetupReport();
         }
-        $success = $this->apply(true, $setupReport);
-        return $success;
+        return $this->apply(true, $setupReport);
     }
 
     /**
@@ -396,20 +408,13 @@ class InstallService extends Component
      * @throws \craft\errors\MissingComponentException
      * @throws \craft\errors\SectionNotFoundException
      */
-    public function setup(?SetupReport $setupReport = null)
+    public function setup(?SetupReport $setupReport = null): bool
     {
         if (!$setupReport) {
             $setupReport = new SetupReport();
         }
 
-        $success = $this->apply(false, $setupReport);
-        //if ($success) {
-        //    Craft::$app->getSession()->setNotice(Craft::t('app', 'Poll installation seems ok.'));
-        //} else {
-        //    Craft::$app->getSession()->setNotice(Craft::t('app', 'Poll installation failed.'));
-        //}
-
-        return $success;
+        return $this->apply(false, $setupReport);
     }
 
 

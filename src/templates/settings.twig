@@ -1,79 +1,59 @@
-{# @var craft \craft\web\twig\variables\CraftVariable #}
-{#
-/**
- * poll plugin for Craft CMS 3.x
- *
- * poll Settings.twig
- *
- * @author    24hoursmedia
- * @copyright Copyright (c) 2020 24hoursmedia
- * @link      https://www.24hoursmedia.com
- * @package   Poll
- * @since     1.0.0
- */
-#}
-
+{# @var settings \twentyfourhoursmedia\poll\models\Settings #}
 {% import "_includes/forms" as forms %}
 
-{% do view.registerAssetBundle("twentyfourhoursmedia\\poll\\assetbundles\\Poll\\PollAsset") %}
-
-
-<h2>Settings</h2>
+<h2>{{ 'Settings'|t('poll') }}</h2>
 
 {{ forms.lightSwitchField({
-    label: 'Block plugin uninstall',
-    instructions: 'Prevents removal of the plugin. Removing the plugin will also remove all of the submitted data, so you might want to backup first.',
+    label: 'Block plugin uninstall'|t('poll'),
+    instructions: 'Prevents removal of the plugin. Removing the plugin will also remove all of the submitted data, so you might want to backup first.'|t('poll'),
     id: 'blockPluginRemoval',
     name: 'blockPluginRemoval',
-    on: settings['blockPluginRemoval']
+    on: settings.blockPluginRemoval,
+    errors: settings.getErrors('blockPluginRemoval'),
 }) }}
 
-<h3>Cookie</h3>
+<h3>{{ 'Cookie'|t('poll') }}</h3>
 
-<p>For anonymous participation, the latest polls in which one has participated is kept in a cookie.</p>
-
+<p>{{ 'For anonymous participation, the latest polls in which one has participated are kept in a cookie.'|t('poll') }}</p>
 
 {{ forms.textField({
-    label: 'Number of participations to keep in a cookie',
-    instructions: 'Number of poll participations to keep. Setting this to a large value increases cookie size.',
+    label: 'Number of participations to keep in a cookie'|t('poll'),
+    instructions: 'Number of poll participations to keep. Setting this to a large value increases cookie size.'|t('poll'),
     id: 'numCookieParticipations',
     name: 'numCookieParticipations',
+    type: 'number',
     size: 10,
-    value: settings['numCookieParticipations'],
+    value: settings.numCookieParticipations,
+    errors: settings.getErrors('numCookieParticipations'),
 }) }}
-{% if settings.getFirstError('numCookieParticipations') %}
-    {{ forms.errorList([settings.getFirstError('numCookieParticipations')]) }}
-{% endif %}
 
 {{ forms.textField({
-    label: 'Participation cookie lifetime in days',
-    instructions: 'Number of days to keep the participations cookie.',
+    label: 'Participation cookie lifetime in days'|t('poll'),
+    instructions: 'Number of days to keep the participations cookie.'|t('poll'),
     id: 'participationsCookieLifetime',
     name: 'participationsCookieLifetime',
+    type: 'number',
     size: 10,
-    value: settings['participationsCookieLifetime'],
+    value: settings.participationsCookieLifetime,
+    errors: settings.getErrors('participationsCookieLifetime'),
 }) }}
-{% if settings.getFirstError('participationsCookieLifetime') %}
-    {{ forms.errorList([settings.getFirstError('participationsCookieLifetime')]) }}
-{% endif %}
 
 <hr/>
 
-<h2>Additional setup</h2>
+<h2>{{ 'Additional setup'|t('poll') }}</h2>
 
 <p>
-    <strong>{{ "You can setup sections and fields in the Poll Utility section" }}. <a href="{{ url('utilities/poll-poll-utility') }}">{{ "Go there" | t }}
-            &raquo;</a></strong>
+    <strong>{{ 'You can set up the sections and fields in the Poll utility.'|t('poll') }}
+        <a href="{{ url('utilities/poll-poll-utility') }}">{{ 'Go there'|t('poll') }} &raquo;</a></strong>
 </p>
 
 <p>
-    If you have not yet setup the fields, and want to change the default names of handles, you can do so by placing a
-    poll.php in the /config directory with customized settings:
+    {{ 'If you have not yet set up the fields and want to change the default handles, you can do so by placing a poll.php in the /config directory with customized settings:'|t('poll') }}
 </p>
 
 <pre><code>
 // example config file to override section handles etc
-// these settings would override the settings set from the CP
+// these settings override the settings set from the CP
 return [
     // configure handles for installation
 
@@ -85,7 +65,7 @@ return [
     // default: selectedPoll
     'selectPollFieldHandle' => '',
 
-    // the matrix that contains 'answers'
+    // the Matrix field that contains 'answers'
     // default: pollAnswerMatrix
     'answerMatrixFieldHandle' => '',
 
@@ -93,6 +73,5 @@ return [
     // this is the handle for that entry type.
     // default: pollAnswer
     'matrixBlockAnswerHandle' => ''
-
 ];
 </code></pre>

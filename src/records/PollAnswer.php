@@ -1,8 +1,6 @@
 <?php
 /**
- * poll plugin for Craft CMS 3.x
- *
- * poll plugin for craft 3.x
+ * Poll plugin for Craft CMS 5.x
  *
  * @link      https://www.24hoursmedia.com
  * @copyright Copyright (c) 2020 24hoursmedia
@@ -11,12 +9,22 @@
 namespace twentyfourhoursmedia\poll\records;
 
 use craft\db\ActiveRecord;
-use yii\db\Schema;
-
 
 /**
- * PollAnswer Record
- * http://www.yiiframework.com/doc-2.0/guide-db-active-record.html
+ * PollAnswer Record: one row per submitted answer.
+ *
+ * The table only has `dateCreated` of Craft's audit columns; Craft's `Command::insert()`
+ * only fills in the audit columns that actually exist, so no custom insert logic is needed.
+ *
+ * @property int $id
+ * @property string $dateCreated
+ * @property int $pollId
+ * @property int $siteId
+ * @property int $fieldId
+ * @property int $answerId
+ * @property int|null $userId
+ * @property string|null $ip
+ * @property string|null $answerText
  *
  * @author    24hoursmedia
  * @package   Poll
@@ -24,93 +32,11 @@ use yii\db\Schema;
  */
 class PollAnswer extends ActiveRecord
 {
-
     /**
-     * @return string
+     * @inheritdoc
      */
-    public static function tableName()
+    public static function tableName(): string
     {
         return '{{%poll_pollanswer}}';
     }
-
-
-    /**
-     * Wether to use the custom insert/update implementation
-     * @return bool
-     */
-    private function useCustomImplementation() {
-        return true;
-    }
-
-    /**
-     * Replaces static::getDb()->schema->insert(static::tableName(), $values).
-     * The poll answer table only has dateCreated from Craft's audit columns.
-     *
-     * @param $table
-     * @param $values
-     * @return array|bool
-     * @throws \yii\db\Exception
-     * @see Schema::insert()
-     */
-    private function customDbSchemaInsert($table, $columns) {
-        $context = static::getDb()->schema;
-
-        $command = $context->db->createCommand()->insert($table, $columns);
-        if (!$command->execute()) {
-            return false;
-        }
-        $tableSchema = $context->getTableSchema($table);
-        $result = [];
-        foreach ($tableSchema->primaryKey as $name) {
-            if ($tableSchema->columns[$name]->autoIncrement) {
-                $result[$name] = $context->getLastInsertID($tableSchema->sequenceName);
-                break;
-            }
-
-            $result[$name] = $columns[$name] ?? $tableSchema->columns[$name]->defaultValue;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Overrides the default insert method with a custom method that
-     * excludes 'audit columns' such as uid.
-     * if  self::useCustomImplementation returns false the default method is used.
-     *
-     * Note that if you want to update columns one might want to override the updateInternal method too.
-     * @see ActiveRecord::updateInternal()
-     *
-     * @inheritDoc
-     */
-    protected function insertInternal($attributes = null)
-    {
-        if (!$this->useCustomImplementation()) {
-            return parent::insertInternal($attributes);
-        }
-
-        if (!$this->beforeSave(true)) {
-            return false;
-        }
-        $values = $this->getDirtyAttributes($attributes);
-
-        $primaryKeys = $this->customDbSchemaInsert(static::tableName(), $values);
-        if ($primaryKeys === false) {
-            return false;
-        }
-
-        foreach ($primaryKeys as $name => $value) {
-            $id = static::getTableSchema()->columns[$name]->phpTypecast($value);
-            $this->setAttribute($name, $id);
-            $values[$name] = $id;
-        }
-
-        $changedAttributes = array_fill_keys(array_keys($values), null);
-        $this->setOldAttributes($values);
-        $this->afterSave(true, $changedAttributes);
-
-        return true;
-    }
-
-
 }

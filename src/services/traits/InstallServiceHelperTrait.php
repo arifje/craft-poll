@@ -41,12 +41,12 @@ trait InstallServiceHelperTrait
      * @return bool|\craft\base\FieldInterface|null
      * @throws \Throwable
      */
-    protected function enforceFieldTypeWithHandle($handle, $createCallback, $createdCallback = null) {
-        $field = Craft::$app->fields->getFieldByHandle($handle);
+    protected function enforceFieldTypeWithHandle(string $handle, callable $createCallback, ?callable $createdCallback = null): mixed
+    {
+        $field = Craft::$app->getFields()->getFieldByHandle($handle);
         if (!$field) {
             $field = $createCallback();
-            if (!Craft::$app->fields->saveField($field, true)) {
-                /* @var $field \craft\base\Field */
+            if (!$field || !Craft::$app->getFields()->saveField($field, true)) {
                 return false;
             }
             $createdCallback && $createdCallback($field);

@@ -19,10 +19,7 @@ use yii\db\conditions\InCondition;
 
 class ResultService extends Component
 {
-    /**
-     * @var PollService
-     */
-    private $pollService;
+    private PollService $pollService;
 
     public function __construct($config = [])
     {
@@ -30,7 +27,8 @@ class ResultService extends Component
         $this->pollService = Poll::$plugin->pollService;
     }
 
-    private function getValidPollIds(array $pollsOrIds) {
+    private function getValidPollIds(array $pollsOrIds): array
+    {
         $ids = array_map(function($pollOrId) {
             $poll = $this->pollService->getPoll($pollOrId);
             return $poll->id ?? null;
@@ -59,7 +57,7 @@ class ResultService extends Component
             a.userId as user_id,
             a.answerText as answer_text,
             u.email as user_email,
-            u.userName as username
+            u.username as username
             '
             )
             ->from(PollAnswer::tableName() . ' a')
@@ -180,8 +178,12 @@ class ResultService extends Component
      * @param $userIds
      * @return User[] = ['id' => User::class, 'id2' => User::class]
      */
-    private function getUsersFromIds($userIds) {
-        $users = User::find()->id($userIds)->anyStatus()->indexBy('id')->all();
+    private function getUsersFromIds(array $userIds): array
+    {
+        if ([] === $userIds) {
+            return [];
+        }
+        $users = User::find()->id($userIds)->status(null)->indexBy('id')->all();
         return array_intersect_key($users, array_flip($userIds));
     }
 }

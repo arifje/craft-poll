@@ -1,38 +1,50 @@
 <?php
 /**
- * Created by PhpStorm
- * User: eapbachman
- * Date: 01/02/2020
+ * Poll plugin for Craft CMS 5.x
+ *
+ * @link      https://www.24hoursmedia.com
+ * @copyright Copyright (c) 2020 24hoursmedia
  */
 
 namespace twentyfourhoursmedia\poll\controllers;
-use Craft;
 
 use craft\web\Controller;
 use twentyfourhoursmedia\poll\Poll;
 use yii\web\BadRequestHttpException;
+use yii\web\NotFoundHttpException;
+use yii\web\Response;
 
+/**
+ * Shows the results of a poll in the control panel.
+ */
 class CpResultController extends Controller
 {
+    protected array|bool|int $allowAnonymous = self::ALLOW_ANONYMOUS_NEVER;
 
-    protected array | bool | int $allowAnonymous = false;
-
-    public function actionResult()
+    /**
+     * @throws BadRequestHttpException
+     * @throws NotFoundHttpException
+     */
+    public function actionResult(): Response
     {
-        $req = Craft::$app->getRequest();
-        $id = $req->getQueryParam('id', null);
+        $this->requireCpRequest();
+        $this->requirePermission('accessPlugin-poll');
+
+        $id = (int)$this->request->getQueryParam('id');
         if (!$id) {
             throw new BadRequestHttpException('Invalid id');
         }
-        $service = Poll::$plugin->facade;
-        $poll = $service->getPoll($id);
 
-        $simpleResults = $service->getResults($poll);
+        $facade = Poll::$plugin->facade;
+        $poll = $facade->getPoll($id);
+        if (!$poll) {
+            throw new NotFoundHttpException('Poll not found');
+        }
+
         return $this->renderTemplate('poll/_poll_results', [
             'poll' => $poll,
-            'service' => $service,
-            'simple_results' => $simpleResults
+            'service' => $facade,
+            'simple_results' => $facade->getResults($poll),
         ]);
     }
-
 }

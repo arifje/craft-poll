@@ -1,5 +1,30 @@
 # Poll Changelog
 
+## 3.1.0 - 2026-09-11
+
+Craft 5 compatibility audit (tested against Craft 5.11.1, PHP 8.2, PHPStan level 5 and the Craft 5 Rector set).
+
+### Fixed
+- Deleting or trashing *any* entry that contains Matrix content threw “Attempt to read property "handle" on null” (Craft 5 also fires the after-delete event for nested entries, which have no section). The cleanup hook now ignores nested entries.
+- Trashing a poll no longer deletes its votes; restoring the poll restores its results. Votes are removed when a poll is permanently deleted, and votes of polls that were hard-deleted by garbage collection are cleaned up on the next `gc/run`.
+- The **Poll results** element index in the control panel: rows link to the results page again and are read-only (no slideout editor), a *Votes* column was added, and the leftover *Test1/Test2* sub-navigation is gone.
+- Poll lookups in the control panel use the selected site (Craft 5 no longer sets a site cookie); front-end lookups use the current site instead of always site 1.
+- The uninstall block (“Block plugin uninstall” setting) no longer `die()`s with raw HTML; it aborts the uninstall with a message, from the control panel and the CLI.
+- Saving the answers Matrix field with propagation method “none” now shows a validation error on the field (the session flash used before is not displayed by Craft 5).
+- Results/CSV actions in the control panel require the *Access Poll* permission and return a 404 for unknown polls.
+- Fresh installs get the `(userId, pollId)` and `(dateCreated)` indexes (they were only added by a migration that fresh installs skipped).
+- The setup utility no longer reports “OK” when a check failed, guards against a missing section or entry type, and gives new answer entry types an automatic title (`{label}`) plus the block view mode with an “Add an answer” button.
+- `ResultService`: replaced the deprecated `anyStatus()` query param; use the correct `username` column (PostgreSQL).
+- Removed the custom insert logic of the `PollAnswer` record (Craft 5 only fills the audit columns that exist).
+- The participation cookie honours `defaultCookieDomain`, `useSecureCookies` and `sameSiteCookieValue`.
+- Removed PHP 8.1+/8.4 deprecations (`trim(null)`, implicit nullable parameters, `fputcsv()` escape parameter).
+- Empty submissions no longer cause “array offset on string” errors in the submit action.
+
+### Changed
+- `PollSubmittedEvent::$user` is now the `craft\elements\User` element (it used to be the `craft\web\User` component).
+- Removed leftovers that no longer exist in Craft 5’s APIs: `Poll::getIsEditable()`, `PollUtility::iconPath()`, the no-op *Create report* element action and the empty asset bundles. The utility uses the plugin icon.
+- `PollService::getPoll()`, `getAnswers()` and `hasParticipated()` are null-safe and typed; `getConfigOption()` returns `null` for unknown keys.
+
 ## 3.0.0
 
 ### Changed

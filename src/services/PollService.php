@@ -1,8 +1,6 @@
 <?php
 /**
- * poll plugin for Craft CMS 3.x
- *
- * poll plugin for craft 3.x
+ * Poll plugin for Craft CMS 5.x
  *
  * @link      https://www.24hoursmedia.com
  * @copyright Copyright (c) 2020 24hoursmedia
@@ -11,26 +9,26 @@
 namespace twentyfourhoursmedia\poll\services;
 
 use Craft;
-use yii\base\Component;
+use craft\db\Query;
+use craft\db\Table;
 use craft\elements\Entry;
+use craft\elements\User as UserElement;
 use craft\enums\PropagationMethod;
 use craft\fields\Matrix;
+use craft\helpers\Cp;
 use craft\models\Section;
 use twentyfourhoursmedia\poll\events\PollEvents;
 use twentyfourhoursmedia\poll\events\PollSubmittedEvent;
 use twentyfourhoursmedia\poll\Poll;
 use twentyfourhoursmedia\poll\records\PollAnswer;
+use yii\base\Component;
 use yii\base\InvalidConfigException;
 use yii\web\Cookie;
 
 /**
- * PollService Service
+ * PollService
  *
- * All of your plugin’s business logic should go in services, including saving data,
- * retrieving data, etc. They provide APIs that your controllers, template variables,
- * and other plugins can interact with.
- *
- * https://craftcms.com/docs/plugins/services
+ * Core business logic: configuration handles, participation tracking, submitting answers.
  *
  * @author    24hoursmedia
  * @package   Poll
@@ -38,7 +36,6 @@ use yii\web\Cookie;
  */
 class PollService extends Component
 {
-
     // constants to refer to configuration keys
     public const CFG_POLL_SECTION_HANDLE = 'CFG_POLL_SECTION_HANDLE';
     public const CFG_FIELD_GROUP_NAME = 'CFG_FIELD_GROUP_NAME';
@@ -56,7 +53,17 @@ class PollService extends Component
     public const CFG_FORM_ANSWERFIELDID_FIELDNAME = "CFG_FORM_ANSWERSFIELDID_FIELDNAME";
     public const CFG_FORM_ANSWERFIELDUID_FIELDNAME = "CFG_FORM_ANSWERSFIELDUID_FIELDNAME";
 
-    private $config = [
+    /**
+     * Name of the cookie that tracks anonymous participations
+     */
+    public const COOKIE_NAME = '_pollids';
+
+    /**
+     * Handle under which the answer label is exposed on answer entries (layout-level handle)
+     */
+    public const ANSWER_LABEL_HANDLE = 'label';
+
+    private array $config = [
         // section, fieldtype, .. handles
         self::CFG_POLL_SECTION_HANDLE => 'pollSection',
         self::CFG_FIELD_ANSWER_MATRIX_HANDLE => 'pollAnswerMatrix',
@@ -64,7 +71,7 @@ class PollService extends Component
         self::CFG_MATRIXBLOCK_ANSWER_HANDLE => 'pollAnswer',
         self::CFG_FIELD_SELECT_POLL_HANDLE => 'selectedPoll',
 
-        // fieldgroup where polls are placed in
+        // legacy: Craft 3/4 field group name (field groups no longer exist in Craft 5)
         self::CFG_FIELD_GROUP_NAME => 'Poll',
 
         // form field names
@@ -75,9 +82,8 @@ class PollService extends Component
         self::CFG_FORM_ANSWERFIELDID_FIELDNAME => '__answerfield_id',
         self::CFG_FORM_ANSWERFIELDUID_FIELDNAME => '__answerfield_uid',
         self::CFG_FORM_POLLANSWER_FIELDNAME => '__answer',
-        self::CFG_FORM_POLLANSWERTEXT_FIELDNAME => '__text'
+        self::CFG_FORM_POLLANSWERTEXT_FIELDNAME => '__text',
     ];
-
 
     public function __construct($config = [])
     {
@@ -89,19 +95,14 @@ class PollService extends Component
             ->applyConfig(self::CFG_FIELD_ANSWER_MATRIX_HANDLE, $settings->answerMatrixFieldHandle)
             ->applyConfig(self::CFG_FIELD_SELECT_POLL_HANDLE, $settings->selectPollFieldHandle)
             ->applyConfig(self::CFG_MATRIXBLOCK_ANSWER_HANDLE, $settings->matrixBlockAnswerHandle);
-
     }
-
 
     /**
      * Sets a value in $config if val does not evaluate to an empty string
-     * @param $key
-     * @param $val
-     * @return $this
      */
-    private function applyConfig($key, $val): self
+    private function applyConfig(string $key, mixed $val): self
     {
-        $val = trim($val);
+        $val = trim((string)$val);
         if ('' === $val) {
             return $this;
         }
@@ -109,83 +110,129 @@ class PollService extends Component
         return $this;
     }
 
-
     /**
      * @return array = $this->config
      */
-    public function getConfig()
+    public function getConfig(): array
     {
         return $this->config;
     }
 
-    public function getConfigOption($handle)
+    public function getConfigOption(string $handle): mixed
     {
-        return $this->config[$handle];
+        return $this->config[$handle] ?? null;
     }
 
-    public function getCookiePollIds()
+    /**
+     * Returns the poll IDs stored in the participation cookie of the current request.
+     *
+     * @return int[]
+     */
+    public function getCookiePollIds(): array
     {
-        $participatedPolls = explode(',', Craft::$app->request->getCookies()->getValue('_pollids', ''));
+        $request = Craft::$app->getRequest();
+        if ($request->getIsConsoleRequest()) {
+            return [];
+        }
+        $participatedPolls = explode(',', (string)$request->getCookies()->getValue(self::COOKIE_NAME, ''));
         $participatedPolls = array_map('intval', $participatedPolls);
-        $participatedPolls = array_filter($participatedPolls);
-        return $participatedPolls;
+        return array_values(array_filter($participatedPolls));
     }
 
     /**
      * Adds a poll id to a cookie to keep track of anonymous participations
-     *
-     * @param $pollId
      */
-    public function addPollIdToCookie($pollId)
+    public function addPollIdToCookie(int $pollId): void
     {
-        $settings = Poll::$plugin->settings;
+        if (Craft::$app->getRequest()->getIsConsoleRequest()) {
+            return;
+        }
+        $settings = Poll::$plugin->getSettings();
         $cookiePollIds = $this->getCookiePollIds();
         array_unshift($cookiePollIds, $pollId);
-        $cookiePollIds = array_slice($cookiePollIds, 0, $settings->numCookieParticipations);
+        $cookiePollIds = array_slice($cookiePollIds, 0, (int)$settings->numCookieParticipations);
         $cookiePollIds = array_values(array_unique($cookiePollIds));
-        $cookie = new Cookie([
-            'name' => '_pollids',
-            'value' => implode(',', $cookiePollIds),
-            'expire' => time() + 86400 * $settings->participationsCookieLifetime
-        ]);
-        Craft::$app->getResponse()->cookies->add($cookie);
-    }
 
-    public function hasParticipated($pollOrPollId, $user = null)
-    {
-        $pollId = $pollOrPollId instanceof Entry ? $pollOrPollId->id : $pollOrPollId;
-        $user = $user ? $user : Craft::$app->user;
-        if ($user && $user->id) {
-            $submission = PollAnswer::findOne(['pollId' => $pollId, 'userId' => $user->id]);
-            return null !== $submission;
-        }
-        return in_array((int)$pollId, $this->getCookiePollIds(), true);
+        // Craft::cookieConfig() applies defaultCookieDomain, useSecureCookies and sameSite from the general config
+        $cookie = new Cookie(Craft::cookieConfig([
+            'name' => self::COOKIE_NAME,
+            'value' => implode(',', $cookiePollIds),
+            'expire' => time() + 86400 * (int)$settings->participationsCookieLifetime,
+        ]));
+        Craft::$app->getResponse()->getCookies()->add($cookie);
     }
 
     /**
+     * Checks whether a user has participated in a poll.
+     * Logged-in users are checked against the database, anonymous users against the participation cookie.
+     *
+     * @param Entry|int|string $pollOrPollId
+     * @param mixed $user a user element, the web user component, a user ID, or null for the current user
+     */
+    public function hasParticipated(mixed $pollOrPollId, mixed $user = null): bool
+    {
+        $pollId = $pollOrPollId instanceof Entry ? (int)$pollOrPollId->id : (int)$pollOrPollId;
+        $userId = $this->resolveUserId($user);
+        if ($userId) {
+            return PollAnswer::find()->where(['pollId' => $pollId, 'userId' => $userId])->exists();
+        }
+        return in_array($pollId, $this->getCookiePollIds(), true);
+    }
+
+    /**
+     * Resolves a user argument (or the current user) to a user ID.
+     */
+    private function resolveUserId(mixed $user = null): ?int
+    {
+        if ($user === null) {
+            $user = Craft::$app->has('user') ? Craft::$app->getUser() : null;
+        }
+        if ($user === null) {
+            return null;
+        }
+        if ($user instanceof UserElement) {
+            return $user->id ? (int)$user->id : null;
+        }
+        if (is_numeric($user)) {
+            return (int)$user;
+        }
+        if (is_object($user) && method_exists($user, 'getId')) {
+            $id = $user->getId();
+            return $id ? (int)$id : null;
+        }
+        return isset($user->id) ? (int)$user->id : null;
+    }
+
+    /**
+     * Stores a submitted answer for a poll.
+     *
      * @param Entry $poll the entry in the polls section
      * @param int $siteId the site from which the form was submitted
-     * @param int $answerFieldId the fieldid (matrixblock) that contained the answers
-     * @param array $answerUids uid's of the blocks in the field
-     * @param array|null $answerTexts = ['answer_uid' => 'some comment', 'answer_uid2' => 'some other comment]
-     * @return bool
+     * @param int $answerFieldId the field id of the Matrix field that contains the answers
+     * @param array $answerUids uid's of the selected answer entries (exactly one is expected)
+     * @param array|null $answerTexts = ['answer_uid' => 'some comment', 'answer_uid2' => 'some other comment']
+     * @return bool whether the submission was stored
      * @throws \craft\errors\InvalidFieldException
      */
     public function submit(Entry $poll, int $siteId, int $answerFieldId, array $answerUids, ?array $answerTexts = []): bool
     {
         $answerMatrix = $poll->getFieldValue($this->getConfigOption(self::CFG_FIELD_ANSWER_MATRIX_HANDLE));
         $answerTexts = is_array($answerTexts) ? $answerTexts : [];
-        /* @var \craft\elements\db\EntryQuery $answerMatrix */
-        $answers = $answerMatrix->all();
-        $answers = array_filter($answers, function ($a) use ($answerUids) {
-            return in_array($a->uid, $answerUids, true);
-        });
-        /* @var $answers Entry[] */
+        /** @var Entry[] $answers */
+        $answers = array_values(array_filter(
+            $answerMatrix ? $answerMatrix->all() : [],
+            static fn(Entry $answer) => in_array($answer->uid, $answerUids, true)
+        ));
         if (count($answers) !== 1) {
             return false;
         }
-        $this->addPollIdToCookie($poll->id);
-        $user = Craft::$app->user;
+
+        $this->addPollIdToCookie((int)$poll->id);
+
+        $userId = $this->resolveUserId();
+        $request = Craft::$app->getRequest();
+        $ip = $request->getIsConsoleRequest() ? null : $request->getUserIP();
+
         foreach ($answers as $answer) {
             $answerText = $answerTexts[$answer->uid] ?? null;
             $record = new PollAnswer([
@@ -193,29 +240,30 @@ class PollService extends Component
                 'siteId' => $siteId,
                 'fieldId' => $answerFieldId,
                 'answerId' => $answer->id,
-                'userId' => $user ? $user->id : null,
-                'answerText' => $answerText,
-                'ip' => inet_pton(Craft::$app->request->getUserIP())
+                'userId' => $userId,
+                'answerText' => is_scalar($answerText) ? (string)$answerText : null,
+                'ip' => $ip ? (inet_pton($ip) ?: null) : null,
             ]);
             $record->save();
         }
 
-
         $poll->trigger(PollEvents::POLL_SUBMITTED, new PollSubmittedEvent([
             'poll' => $poll,
-            'user' => $user,
-            'answers' => $answers
+            'user' => $userId ? Craft::$app->getUser()->getIdentity() : null,
+            'answers' => $answers,
         ]));
 
         return true;
     }
 
     /**
-     * @param $pollOrPollId
-     * @param null $status the status, defaults to all polls, also disabled.
-     * @return Entry | null
+     * Returns a poll entry.
+     *
+     * @param Entry|int|string|null $pollOrPollId
+     * @param string|string[]|null $status the status, defaults to all polls, also disabled ones.
+     * @param int|null $siteId defaults to the site of the current request (the selected site in the control panel)
      */
-    public function getPoll($pollOrPollId, $status = null, $siteId = null)
+    public function getPoll(mixed $pollOrPollId, mixed $status = null, ?int $siteId = null): ?Entry
     {
         if (!$pollOrPollId) {
             return null;
@@ -224,40 +272,63 @@ class PollService extends Component
             return $this->isAPollEntry($pollOrPollId) ? $pollOrPollId : null;
         }
 
-        // if we weren't passed a site ID, try to get the current site's ID from a cookie (the request is probably from the CP)
-        if(!$siteId) {
-            $siteCookieName = 'Craft-' . Craft::$app->getSystemUid() . ':siteId';
-            $siteId = \Craft::$app->request->getRawCookies()->getValue($siteCookieName) ?: 1;
+        if (!$siteId) {
+            $request = Craft::$app->getRequest();
+            if (!$request->getIsConsoleRequest() && $request->getIsCpRequest()) {
+                // the site selected in the control panel (`site` query param)
+                $siteId = Cp::requestedSite()?->id;
+            }
+            $siteId ??= Craft::$app->getSites()->getCurrentSite()->id;
         }
-        $q = Entry::find()
-            ->siteId($siteId)
-            ->section($this->getConfigOption(PollService::CFG_POLL_SECTION_HANDLE))
-            ->id($pollOrPollId)->status($status);
 
-        return $q->one();
+        return Entry::find()
+            ->siteId($siteId)
+            ->section($this->getConfigOption(self::CFG_POLL_SECTION_HANDLE))
+            ->id((int)$pollOrPollId)
+            ->status($status)
+            ->one();
     }
 
     /**
      * Returns the section(s) that have polls
+     *
      * @return Section[]
      */
-    public function getPollSections() : array
+    public function getPollSections(): array
     {
-        $sections = array_map(function(string $handle) {
-            return Craft::$app->getEntries()->getSectionByHandle($handle);
-        }, [$this->getConfigOption(self::CFG_POLL_SECTION_HANDLE)]);
-       return array_filter($sections);
+        $sections = [];
+        foreach ([$this->getConfigOption(self::CFG_POLL_SECTION_HANDLE)] as $handle) {
+            $section = Craft::$app->getEntries()->getSectionByHandle($handle);
+            if ($section) {
+                $sections[] = $section;
+            }
+        }
+        return $sections;
     }
 
     /**
-     * @param $pollOrPollId
+     * Returns the answer entries (nested Matrix entries) of a poll.
+     *
+     * @param Entry|int|string|null $pollOrPollId
      * @return Entry[]
      */
-    public function getAnswers($pollOrPollId)
+    public function getAnswers(mixed $pollOrPollId): array
     {
         $poll = $this->getPoll($pollOrPollId);
+        if (!$poll) {
+            return [];
+        }
         $matrix = $poll->getFieldValue($this->getConfigOption(self::CFG_FIELD_ANSWER_MATRIX_HANDLE));
-        return $matrix->all();
+        return $matrix ? $matrix->all() : [];
+    }
+
+    /**
+     * Returns the label of an answer entry.
+     */
+    public function getAnswerLabel(Entry $answer): ?string
+    {
+        $label = $answer->{self::ANSWER_LABEL_HANDLE} ?? $answer->{$this->getConfigOption(self::CFG_FIELD_ANSWER_LABEL_HANDLE)} ?? null;
+        return is_scalar($label) ? (string)$label : null;
     }
 
     /**
@@ -266,80 +337,66 @@ class PollService extends Component
      * @param array $pollOrPollIds
      * @return array = [232 => 'label 1', 443 => 'label 2']
      */
-    public function getAnswerLabelsIndexedById(array $pollOrPollIds) {
+    public function getAnswerLabelsIndexedById(array $pollOrPollIds): array
+    {
         $labels = [];
-        $polls = array_map([$this, 'getPoll'], $pollOrPollIds);
-        foreach ($polls as $poll) {
-            $answers = $this->getAnswers($poll);
-            foreach ($answers as $answer) {
-                $labels[$answer->id] = $answer->label ?? '(no label)';
+        foreach ($pollOrPollIds as $pollOrPollId) {
+            foreach ($this->getAnswers($pollOrPollId) as $answer) {
+                $labels[$answer->id] = $this->getAnswerLabel($answer) ?? '(no label)';
             }
         }
         return $labels;
     }
 
     /**
-     * Checks if a field is an answer martrix field.
+     * Checks if a field is an answer matrix field.
      * Used to hook into the validation.
-     *
-     * @param $element
-     * @return bool
      */
-    public function isAnAnswerMatrix($element)
+    public function isAnAnswerMatrix(mixed $field): bool
     {
-        if (!$element instanceof Matrix) {
+        if (!$field instanceof Matrix) {
             return false;
         }
         // the handle must be one of the registered handles
-        if ($element->handle !== $this->getConfigOption(self::CFG_FIELD_ANSWER_MATRIX_HANDLE)) {
-            return false;
-        }
-        return true;
+        return $field->handle === $this->getConfigOption(self::CFG_FIELD_ANSWER_MATRIX_HANDLE);
     }
 
     /**
-     * Verify if something is a Poll entry
-     *
-     * @param $element
-     * @return bool
+     * Verify if something is a Poll entry.
+     * Nested (Matrix) entries have no section and are never polls.
      */
-    public function isAPollEntry($element)
+    public function isAPollEntry(mixed $element): bool
     {
-        try {
-            if (!$element instanceof Entry) {
-                return false;
-            }
-            if ($element->section->handle !== $this->getConfigOption(self::CFG_POLL_SECTION_HANDLE)) {
-                return false;
-            }
-            return true;
-        } catch (InvalidConfigException $e) {
-            // Sometimes for some reason craft passes entries with an invalid section during gc cleanup
-            // as reported in: https://github.com/craftcms/cms/issues/7356
-            // and https://github.com/24hoursmedia-craftcms/poll/issues/28
-            // craft v3.5.17
-            // the exception is caught here and the entry is considered 'no poll'.
-            // this may result in orphaned answers
+        if (!$element instanceof Entry || !$element->sectionId) {
             return false;
         }
+        try {
+            $section = $element->getSection();
+        } catch (InvalidConfigException) {
+            // Craft may pass entries with an invalid section during garbage collection
+            // https://github.com/craftcms/cms/issues/7356
+            return false;
+        }
+        return $section !== null && $section->handle === $this->getConfigOption(self::CFG_POLL_SECTION_HANDLE);
     }
 
     /**
-     * When a matrix field is saved, check if the data is ok (propagation methods allowed etc).
-     * An event handler of the plugin calls this method;
-     * @param Matrix $matrix
-     * @return bool
-     * @see Poll::init()
+     * When an answers Matrix field is saved, check if the settings are ok (propagation methods allowed etc).
+     * An event handler of the plugin calls this method.
      *
+     * @see Poll::init()
      */
-    public function validateAnswerMatrixField(Matrix $matrix)
+    public function validateAnswerMatrixField(Matrix $matrix): bool
     {
         if (!$this->isAnAnswerMatrix($matrix)) {
             throw new \LogicException("The field to validate is not recognized as an answer matrix field!");
         }
         if ($matrix->propagationMethod === PropagationMethod::None) {
-            $err = "You cannot set the propagation method to {$matrix->propagationMethod->value} for a Poll answers field";
-            Craft::$app->session->setFlash('notice', $err);
+            $matrix->addError('propagationMethod', Craft::t(
+                'poll',
+                'The propagation method of a poll answers field cannot be set to “{method}”.',
+                ['method' => $matrix->propagationMethod->value]
+            ));
             return false;
         }
         return true;
@@ -347,20 +404,34 @@ class PollService extends Component
 
     /**
      * Remove all answer submissions for a poll entry.
-     * Called by an event handler when a poll entry is removed.
+     * Called by an event handler when a poll entry is permanently deleted.
      * First check ::isAPollEntry before calling this method.
      *
-     * @param $entry
-     * @return int                          the number of records deleted
+     * @param Entry|int $entry
+     * @return int the number of records deleted
      * @see PollService::isAPollEntry()     to check if the entry is actually a poll
      * @see Poll::init()                    where the event handler is registered
      */
-    public function removeAnswersForPoll($entry) : int {
-        if (!isset($entry->id) || !$entry->id) {
+    public function removeAnswersForPoll(mixed $entry): int
+    {
+        $pollId = $entry instanceof Entry ? $entry->id : $entry;
+        if (!$pollId) {
             throw new \LogicException('No id set');
         }
-        return PollAnswer::deleteAll(['pollId' => $entry->id]);
+        return PollAnswer::deleteAll(['pollId' => $pollId]);
     }
 
-
+    /**
+     * Removes answers whose poll entry no longer exists (e.g. hard-deleted by garbage collection).
+     *
+     * @return int the number of records deleted
+     */
+    public function removeOrphanedAnswers(): int
+    {
+        return PollAnswer::deleteAll([
+            'not in',
+            'pollId',
+            (new Query())->select('id')->from(Table::ELEMENTS),
+        ]);
+    }
 }

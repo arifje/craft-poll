@@ -2,7 +2,6 @@
 
 namespace twentyfourhoursmedia\poll\migrations;
 
-use Craft;
 use craft\db\Migration;
 
 /**
@@ -13,28 +12,24 @@ class m210228_095308_add_answer_text extends Migration
     /**
      * @inheritdoc
      */
-    public function safeUp()
+    public function safeUp(): bool
     {
-        if ($this->db->columnExists('{{%poll_pollanswer}}', 'answerText')) {
-            return;
+        if (!$this->db->columnExists('{{%poll_pollanswer}}', 'answerText')) {
+            $this->addColumn('{{%poll_pollanswer}}', 'answerText', $this->mediumText()->null());
         }
 
-        $this->addColumn(
-            '{{%poll_pollanswer}}',
-            'answerText',
-            $this->mediumText()->null()
-        );
+        return true;
     }
 
     /**
      * @inheritdoc
      */
-    public function safeDown()
+    public function safeDown(): bool
     {
-        if (!$this->db->columnExists('{{%poll_pollanswer}}', 'answerText')) {
-            return;
+        if ($this->db->columnExists('{{%poll_pollanswer}}', 'answerText')) {
+            $this->dropColumn('{{%poll_pollanswer}}', 'answerText');
         }
 
-        $this->dropColumn('{{%poll_pollanswer}}', 'answerText');
+        return true;
     }
 }

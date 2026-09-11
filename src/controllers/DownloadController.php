@@ -1,54 +1,54 @@
 <?php
 /**
- * Created by PhpStorm
- * User: eapbachman
- * Date: 01/02/2020
+ * Poll plugin for Craft CMS 5.x
+ *
+ * @link      https://www.24hoursmedia.com
+ * @copyright Copyright (c) 2020 24hoursmedia
  */
 
 namespace twentyfourhoursmedia\poll\controllers;
 
-use Craft;
+use craft\elements\Entry;
 use craft\web\Controller;
 use twentyfourhoursmedia\poll\helper\CsvHelper;
 use twentyfourhoursmedia\poll\Poll;
-use yii\web\BadRequestHttpException;
+use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
+/**
+ * Exports raw poll data from the control panel.
+ */
 class DownloadController extends Controller
 {
-
-    protected array | bool | int $allowAnonymous = false;
+    protected array|bool|int $allowAnonymous = self::ALLOW_ANONYMOUS_NEVER;
 
     /**
      * Gets a poll entry from the request
-     * @return \craft\elements\Entry|null
-     * @throws BadRequestHttpException
+     *
+     * @throws NotFoundHttpException
      */
-    private function getPoll()
+    private function getPoll(): Entry
     {
         $poll = Poll::$plugin->pollService->getPoll(
-            Craft::$app->getRequest()->getQueryParam('id')
+            (int)$this->request->getParam('id')
         );
         if (!$poll) {
-            throw new BadRequestHttpException('Not a poll');
+            throw new NotFoundHttpException('Not a poll');
         }
         return $poll;
     }
 
     /**
      * Downloads poll data in CSV format
-     * action route: poll/data/poll-data
+     * action route: poll/download/poll-data
      */
     public function actionPollData(): Response
     {
         $this->requireCpRequest();
-        $this->requirePermission('accessplugin-poll');
-
+        $this->requirePermission('accessPlugin-poll');
 
         $polls = [$this->getPoll()];
         $data = Poll::$plugin->resultService->getData($polls);
-
-        $fh = tmpfile();
 
         // append answer labels
         $labels = Poll::$plugin->pollService->getAnswerLabelsIndexedById($polls);
@@ -64,16 +64,12 @@ class DownloadController extends Controller
             $columns[] = 'answer_text';
         }
 
+        $fh = tmpfile();
         CsvHelper::createCsv($fh, $columns, $data);
         fseek($fh, 0);
 
-        $attachmentName = 'polldata-' . date('YmdHis') . '.csv';
-
-        $response = new Response();
-        $response->sendStreamAsFile($fh, $attachmentName);
-
-
-        return $response;
+        return $this->response->sendStreamAsFile($fh, 'polldata-' . date('YmdHis') . '.csv', [
+            'mimeType' => 'text/csv',
+        ]);
     }
-
 }

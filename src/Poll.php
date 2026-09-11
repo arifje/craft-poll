@@ -1,8 +1,6 @@
 <?php
 /**
- * poll plugin for Craft CMS 3.x
- *
- * poll plugin for craft 3.x
+ * Poll plugin for Craft CMS 5.x
  *
  * @link      https://www.24hoursmedia.com
  * @copyright Copyright (c) 2020 24hoursmedia
@@ -12,84 +10,57 @@ namespace twentyfourhoursmedia\poll;
 
 use Craft;
 use craft\base\Model;
+use craft\base\Plugin;
+use craft\elements\Entry;
+use craft\events\RegisterComponentTypesEvent;
+use craft\fields\Matrix;
 use craft\helpers\UrlHelper;
 use craft\services\Elements;
-use twentyfourhoursmedia\poll\services\Facade;
-use twentyfourhoursmedia\poll\services\PollService;
-use twentyfourhoursmedia\poll\services\ResultService;
-use yii\base\Event;
-use craft\base\Model;
-use craft\elements\Entry;
-use craft\enums\PropagationMethod;
-use craft\fields\Matrix;
-use craft\base\Plugin;
-use craft\services\Plugins;
-use craft\events\PluginEvent;
-use craft\web\UrlManager;
+use craft\services\Gc;
 use craft\services\Utilities;
 use craft\web\twig\variables\CraftVariable;
-use craft\events\RegisterComponentTypesEvent;
-use craft\events\RegisterUrlRulesEvent;
-use twentyfourhoursmedia\poll\services\InstallService;
-use twentyfourhoursmedia\poll\variables\PollVariable;
-use twentyfourhoursmedia\poll\twigextensions\PollTwigExtension;
-use twentyfourhoursmedia\poll\models\Settings;
-use twentyfourhoursmedia\poll\utilities\PollUtility as PollUtilityUtility;
 use twentyfourhoursmedia\poll\elements\Poll as PollElement;
+use twentyfourhoursmedia\poll\models\Settings;
+use twentyfourhoursmedia\poll\services\Facade;
+use twentyfourhoursmedia\poll\services\InstallService;
+use twentyfourhoursmedia\poll\services\PollService;
+use twentyfourhoursmedia\poll\services\ResultService;
+use twentyfourhoursmedia\poll\twigextensions\PollTwigExtension;
+use twentyfourhoursmedia\poll\utilities\PollUtility;
+use twentyfourhoursmedia\poll\variables\PollVariable;
+use yii\base\Event;
+use yii\base\ModelEvent;
+use yii\web\ForbiddenHttpException;
 
 /**
- * Craft plugins are very much like little applications in and of themselves. We’ve made
- * it as simple as we can, but the training wheels are off. A little prior knowledge is
- * going to be required to write a plugin.
- *
- * For the purposes of the plugin docs, we’re going to assume that you know PHP and SQL,
- * as well as some semi-advanced concepts like object-oriented programming and PHP namespaces.
- *
- * https://craftcms.com/docs/plugins/introduction
+ * Poll plugin
  *
  * @author    24hoursmedia
  * @package   Poll
  * @since     1.0.0
  *
- * @property  PollService $pollService
- * @property  ResultService $resultService
- * @property  InstallService $installService
- * @property  Facade $facade
- * @property  Settings $settings
+ * @property-read PollService $pollService
+ * @property-read ResultService $resultService
+ * @property-read InstallService $installService
+ * @property-read Facade $facade
  * @method    Settings getSettings()
  */
 class Poll extends Plugin
 {
-
-    // Static Properties
-    // =========================================================================
-
     public const LOG_CATEGORY = 'poll_plugin';
 
     /**
      * Static property that is an instance of this plugin class so that it can be accessed via
      * Poll::$plugin
-     *
-     * @var Poll
      */
-    public static $plugin;
-
-    // Public Properties
-    // =========================================================================
+    public static ?Poll $plugin = null;
 
     public string $schemaVersion = '1.1.1';
 
-    // Public Methods
-    // =========================================================================
-
     /**
-     * Set our $plugin static property to this class so that it can be accessed via
-     * Poll::$plugin
-     *
-     * Called after the plugin class is instantiated; do any one-time initialization
-     * here such as hooks and events.
+     * @inheritdoc
      */
-    public function init()
+    public function init(): void
     {
         parent::init();
         self::$plugin = $this;
@@ -97,135 +68,96 @@ class Poll extends Plugin
         $this->setComponents([
             'installService' => InstallService::class,
             'resultService' => ResultService::class,
-            'facade' => Facade::class
+            'facade' => Facade::class,
         ]);
 
+        // Twig extension (pollInputs(), generatePollAnswerFieldName(), ...)
+        Craft::$app->getView()->registerTwigExtension(new PollTwigExtension());
 
-        // Add in our Twig extensions
-        Craft::$app->view->registerTwigExtension(new PollTwigExtension());
-
-        // Register our site routes
-        Event::on(
-            UrlManager::class,
-            UrlManager::EVENT_REGISTER_SITE_URL_RULES,
-            function (RegisterUrlRulesEvent $event) {
-                $event->rules['siteActionTrigger1'] = 'poll/answer';
-            }
-        );
-
-        // Register our CP routes
-        Event::on(
-            UrlManager::class,
-            UrlManager::EVENT_REGISTER_CP_URL_RULES,
-            function (RegisterUrlRulesEvent $event) {
-             //   $event->rules['cpActionTrigger1'] = 'poll/download/poll-data';
-            }
-        );
-
-        // Register Poll elements
+        // Register the Poll element type (backs the "Poll results" index in the control panel)
         Event::on(
             Elements::class,
             Elements::EVENT_REGISTER_ELEMENT_TYPES,
-            function (RegisterComponentTypesEvent $event) {
+            static function(RegisterComponentTypesEvent $event) {
                 $event->types[] = PollElement::class;
             }
         );
 
-        // Register our utilities
+        // Register the setup utility
         Event::on(
             Utilities::class,
             Utilities::EVENT_REGISTER_UTILITIES,
-            function (RegisterComponentTypesEvent $event) {
-                $event->types[] = PollUtilityUtility::class;
+            static function(RegisterComponentTypesEvent $event) {
+                $event->types[] = PollUtility::class;
             }
         );
 
-        // Register our variables
+        // Register the `craft.poll` template variable
         Event::on(
             CraftVariable::class,
             CraftVariable::EVENT_INIT,
-            function (Event $event) {
+            static function(Event $event) {
                 /** @var CraftVariable $variable */
                 $variable = $event->sender;
                 $variable->set('poll', PollVariable::class);
             }
         );
 
-
-        // Remove poll answer entries if a poll entry is deleted
-        Event::on(Entry::class, Entry::EVENT_AFTER_DELETE, static function (\yii\base\Event $event) {
+        // Remove submitted answers when a poll entry is permanently deleted.
+        // Trashed (soft-deleted) polls keep their answers, so restoring the entry restores its results.
+        // Note: in Craft 5 this event also fires for nested (Matrix) entries, which have no section.
+        Event::on(Entry::class, Entry::EVENT_AFTER_DELETE, static function(Event $event) {
+            /** @var Entry $entry */
+            $entry = $event->sender;
+            if (!$entry->hardDelete) {
+                return;
+            }
             $service = self::$plugin->pollService;
-            if ($service->isAPollEntry($event->sender)) {
-                $numRemoved = $service->removeAnswersForPoll($event->sender);
-                Craft::warning(sprintf('Removed %d poll submissions because poll entry with ID %d was removed', $numRemoved, $event->sender->id), self::LOG_CATEGORY);
+            if ($service->isAPollEntry($entry)) {
+                $numRemoved = $service->removeAnswersForPoll($entry);
+                Craft::info(sprintf('Removed %d poll submissions because poll entry with ID %d was permanently deleted', $numRemoved, $entry->id), self::LOG_CATEGORY);
+            }
+        });
+
+        // Garbage collection hard-deletes trashed elements without firing element events,
+        // so clean up answers whose poll entry no longer exists.
+        Event::on(Gc::class, Gc::EVENT_RUN, static function() {
+            $numRemoved = self::$plugin->pollService->removeOrphanedAnswers();
+            if ($numRemoved) {
+                Craft::info(sprintf('Removed %d orphaned poll submissions during garbage collection', $numRemoved), self::LOG_CATEGORY);
             }
         });
 
         // Block certain settings on poll answer matrices
-        Event::on(Matrix::class, Matrix::EVENT_BEFORE_VALIDATE, static function (\yii\base\ModelEvent $event) {
+        Event::on(Matrix::class, Matrix::EVENT_BEFORE_VALIDATE, static function(ModelEvent $event) {
             $service = self::$plugin->pollService;
             if ($service->isAnAnswerMatrix($event->sender)) {
                 $event->isValid = $service->validateAnswerMatrixField($event->sender);
             }
         });
-
-        // Optionally block removal of the plugin to prevent data loss
-        $me = $this;
-        Event::on(Plugins::class, Plugins::EVENT_BEFORE_UNINSTALL_PLUGIN, static function (PluginEvent $event) use ($me) {
-            if ($event->plugin === $me && self::$plugin->settings->blockPluginRemoval) {
-                $settingsUrl = UrlHelper::url('settings/plugins/poll');
-
-                echo <<<HTML
-<h1>Warning</h1>
-<p>You are trying to remove the Poll plugin, but have blocked removal in the settings panel.</p>
-<p>Proceed by disabling the block in the <a href="$settingsUrl">plugin settings</a> and then try again.</p>
-<p><strong>Because removing the plugin also removes all submitted data, you might want to backup your database first.</strong></p>
-HTML;
-                die('');
-            }
-
-        });
-
-        // Do something after we're installed
-        Event::on(
-            Plugins::class,
-            Plugins::EVENT_AFTER_INSTALL_PLUGIN,
-            function (PluginEvent $event) {
-                if ($event->plugin === $this) {
-                    // We were just installed
-                }
-            }
-        );
-
-        /**
-         * Logging in Craft involves using one of the following methods:
-         *
-         * Craft::trace(): record a message to trace how a piece of code runs. This is mainly for development use.
-         * Craft::info(): record a message that conveys some useful information.
-         * Craft::warning(): record a warning message that indicates something unexpected has happened.
-         * Craft::error(): record a fatal error that should be investigated as soon as possible.
-         *
-         * Unless `devMode` is on, only Craft::warning() & Craft::error() will log to `craft/storage/logs/web.log`
-         *
-         * http://www.yiiframework.com/doc-2.0/guide-runtime-logging.html
-         */
-        Craft::info(
-            Craft::t(
-                'poll',
-                '{name} plugin loaded',
-                ['name' => $this->name]
-            ),
-            __METHOD__
-        );
     }
 
-    // Protected Methods
-    // =========================================================================
+    /**
+     * Optionally blocks removal of the plugin to prevent data loss (see the "Block plugin uninstall" setting).
+     * Throwing here aborts the uninstall; Craft rolls the transaction back.
+     *
+     * @throws ForbiddenHttpException
+     */
+    protected function beforeUninstall(): void
+    {
+        if ($this->getSettings()->blockPluginRemoval) {
+            throw new ForbiddenHttpException(sprintf(
+                'The Poll plugin cannot be uninstalled because “Block plugin uninstall” is enabled in its settings (%s). ' .
+                'Uninstalling removes all submitted poll data, so back up your database first.',
+                UrlHelper::cpUrl('settings/plugins/poll')
+            ));
+        }
+
+        parent::beforeUninstall();
+    }
 
     /**
-     * Creates and returns the model used to store the plugin’s settings.
-     *
-     * @return \craft\base\Model|null
+     * @inheritdoc
      */
     protected function createSettingsModel(): ?Model
     {
@@ -233,25 +165,12 @@ HTML;
     }
 
     /**
-     * Returns the rendered settings HTML, which will be inserted into the content
-     * block on the settings page.
-     *
-     * @return string The rendered settings HTML
-     * @throws \Twig\Error\LoaderError
-     * @throws \Twig\Error\RuntimeError
-     * @throws \Twig\Error\SyntaxError
-     * @throws \yii\base\Exception
+     * @inheritdoc
      */
-    protected function settingsHtml(): string
+    protected function settingsHtml(): ?string
     {
-        return Craft::$app->view->renderTemplate(
-            'poll/settings',
-            [
-                'settings' => $this->getSettings()
-            ]
-        );
+        return Craft::$app->getView()->renderTemplate('poll/settings', [
+            'settings' => $this->getSettings(),
+        ]);
     }
-
-
-
 }

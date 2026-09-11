@@ -1,8 +1,6 @@
 <?php
 /**
- * poll plugin for Craft CMS 3.x
- *
- * poll plugin for craft 3.x
+ * Poll plugin for Craft CMS 5.x
  *
  * @link      https://www.24hoursmedia.com
  * @copyright Copyright (c) 2020 24hoursmedia
@@ -10,23 +8,19 @@
 
 namespace twentyfourhoursmedia\poll\twigextensions;
 
+use Craft;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
+use craft\helpers\Html;
 use twentyfourhoursmedia\poll\models\PollResults;
 use twentyfourhoursmedia\poll\Poll;
+use twentyfourhoursmedia\poll\services\PollService;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 use Twig\TwigFunction;
 
-use Craft;
-use twentyfourhoursmedia\poll\services\PollService;
-
 /**
- * Twig can be extended in many ways; you can add extra tags, filters, tests, operators,
- * global variables, and functions. You can even extend the parser itself with
- * node visitors.
- *
- * http://twig.sensiolabs.org/doc/advanced.html
+ * Twig functions and filters for rendering poll forms.
  *
  * @author    24hoursmedia
  * @package   Poll
@@ -34,27 +28,10 @@ use twentyfourhoursmedia\poll\services\PollService;
  */
 class PollTwigExtension extends AbstractExtension
 {
-    // Public Methods
-    // =========================================================================
-
     /**
-     * Returns the name of the extension.
-     *
-     * @return string The extension name
+     * @inheritdoc
      */
-    public function getName()
-    {
-        return 'Poll';
-    }
-
-    /**
-     * Returns an array of Twig filters, used in Twig templates via:
-     *
-     *      {{ 'something' | someFilter }}
-     *
-     * @return array
-     */
-    public function getFilters()
+    public function getFilters(): array
     {
         return [
             new TwigFilter('poll_participated', [$this, 'participatedInPoll']),
@@ -64,51 +41,49 @@ class PollTwigExtension extends AbstractExtension
     }
 
     /**
-     * Returns an array of Twig functions, used in Twig templates via:
-     *
-     *      {% set this = someFunction('something') %}
-     *
-    * @return array
+     * @inheritdoc
      */
-    public function getFunctions()
+    public function getFunctions(): array
     {
         return [
             new TwigFunction('generatePollAnswerFieldName', [$this, 'generatePollAnswerFieldName']),
             new TwigFunction('generatePollAnswerTextFieldName', [$this, 'generatePollAnswerTextFieldName']),
             new TwigFunction('generatePollAnswerFieldValue', [$this, 'generatePollAnswerFieldValue']),
             new TwigFunction('pollInputs', [$this, 'getPollInputs'], ['is_safe' => ['html']]),
-            // deprecated:
+            new TwigFunction('pollUid', [$this, 'createUid']),
+            // deprecated, use craft.poll.results():
             new TwigFunction('getPollResults', [$this, 'getPollResults']),
-            new TwigFunction('pollUid', [$this, 'createUniqid']),
-            // deprecated:
+            // deprecated, use craft.poll.getPoll():
             new TwigFunction('getPoll', [$this, 'getPoll']),
         ];
     }
 
     /**
+     * Renders the hidden inputs a poll form needs (site, poll and answers field identifiers).
+     *
      * @param Entry $poll
-     * @param EntryQuery|null $matrix
-     * @return string
+     * @param EntryQuery|iterable|null $matrix the answers Matrix field value; defaults to the configured answers field
      * @throws \craft\errors\SiteNotFoundException
      */
-    public function getPollInputs(Entry $poll, $matrix = null): string
+    public function getPollInputs(Entry $poll, mixed $matrix = null): string
     {
         $service = Poll::$plugin->pollService;
+        $fieldsService = Craft::$app->getFields();
+        $field = null;
 
-        $fieldId = null;
-        if ($matrix) {
+        if ($matrix instanceof EntryQuery) {
             $answer = $matrix->one();
-            if ($answer) {
-                $fieldId = $answer->fieldId;
-                if (is_array($fieldId)) {
-                    $fieldId = array_shift($fieldId);
-                }
-                $field = Craft::$app->fields->getFieldById($fieldId);
-            }
+        } elseif (is_iterable($matrix)) {
+            $answer = iterator_to_array($matrix, false)[0] ?? null;
+        } else {
+            $answer = null;
+        }
+        if ($answer instanceof Entry && $answer->fieldId) {
+            $field = $fieldsService->getFieldById($answer->fieldId);
         }
 
-        if (!isset($field)) {
-            $field = Craft::$app->fields->getFieldByHandle(
+        if (!$field) {
+            $field = $fieldsService->getFieldByHandle(
                 $service->getConfigOption(PollService::CFG_FIELD_ANSWER_MATRIX_HANDLE)
             );
         }
@@ -116,87 +91,82 @@ class PollTwigExtension extends AbstractExtension
             return 'ERROR invalid answers field';
         }
 
-        return <<<HTML
-        <input type="hidden" name="{$service->getConfigOption(PollService::CFG_FORM_SITEID_FIELDNAME)}" value="{$poll->site->id}" />
-        <input type="hidden" name="{$service->getConfigOption(PollService::CFG_FORM_SITEUID_FIELDNAME)}" value="{$poll->site->uid}" />
-        <input type="hidden" name="{$service->getConfigOption(PollService::CFG_FORM_POLLID_FIELDNAME)}" value="{$poll->id}" />
-        <input type="hidden" name="{$service->getConfigOption(PollService::CFG_FORM_POLLUID_FIELDNAME)}" value="{$poll->uid}" />
-        <input type="hidden" name="{$service->getConfigOption(PollService::CFG_FORM_ANSWERFIELDID_FIELDNAME)}" value="{$field->id}" />
-        <input type="hidden" name="{$service->getConfigOption(PollService::CFG_FORM_ANSWERFIELDUID_FIELDNAME)}" value="{$field->uid}" />
-HTML;
+        $site = $poll->getSite();
+
+        return implode("\n", [
+            Html::hiddenInput($service->getConfigOption(PollService::CFG_FORM_SITEID_FIELDNAME), (string)$site->id),
+            Html::hiddenInput($service->getConfigOption(PollService::CFG_FORM_SITEUID_FIELDNAME), (string)$site->uid),
+            Html::hiddenInput($service->getConfigOption(PollService::CFG_FORM_POLLID_FIELDNAME), (string)$poll->id),
+            Html::hiddenInput($service->getConfigOption(PollService::CFG_FORM_POLLUID_FIELDNAME), (string)$poll->uid),
+            Html::hiddenInput($service->getConfigOption(PollService::CFG_FORM_ANSWERFIELDID_FIELDNAME), (string)$field->id),
+            Html::hiddenInput($service->getConfigOption(PollService::CFG_FORM_ANSWERFIELDUID_FIELDNAME), (string)$field->uid),
+        ]);
     }
 
     /**
-     * Generates a field name for a poll answer
-     * @param Entry $answer
-     * @return string
+     * Generates the input name for a poll answer (radio button).
      */
     public function generatePollAnswerFieldName(Entry $poll, Entry $answer): string
     {
         $service = Poll::$plugin->pollService;
-        return "{$service->getConfigOption('CFG_FORM_POLLANSWER_FIELDNAME')}[{$poll->uid}]";
-    }
-
-    public function generatePollAnswerTextFieldName(Entry $poll, Entry $answer) : string {
-        $service = Poll::$plugin->pollService;
-        return "{$service->getConfigOption('CFG_FORM_POLLANSWERTEXT_FIELDNAME')}[{$poll->uid}][$answer->uid]";
+        return "{$service->getConfigOption(PollService::CFG_FORM_POLLANSWER_FIELDNAME)}[{$poll->uid}]";
     }
 
     /**
-     * Generates a field value for a poll answer
-     * @param Entry $answer
-     * @return string
+     * Generates the input name for the optional free text that goes with an answer.
+     */
+    public function generatePollAnswerTextFieldName(Entry $poll, Entry $answer): string
+    {
+        $service = Poll::$plugin->pollService;
+        return "{$service->getConfigOption(PollService::CFG_FORM_POLLANSWERTEXT_FIELDNAME)}[{$poll->uid}][{$answer->uid}]";
+    }
+
+    /**
+     * Generates the input value for a poll answer.
      */
     public function generatePollAnswerFieldValue(Entry $poll, Entry $answer): string
     {
-        return (string)($answer->uid);
+        return (string)$answer->uid;
     }
 
     /**
-     * @deprecated
-     *
-     * @param $poll
-     * @return bool
+     * @deprecated use craft.poll.hasParticipated()
      */
-    public function participatedInPoll($poll)
+    public function participatedInPoll(mixed $poll): bool
     {
         return Poll::$plugin->pollService->hasParticipated($poll);
     }
 
     /**
-     * @param $pollOrPollId
-     * @param array $opts
-     * @return PollResults | null
-     * @deprecated
+     * @deprecated use craft.poll.results()
      */
-    public function getPollResults($pollOrPollId, array $opts = [])
+    public function getPollResults(mixed $pollOrPollId, array $opts = []): ?PollResults
     {
         return Poll::$plugin->facade->getResults($pollOrPollId, $opts);
     }
 
     /**
-     * Creates a uniqid for use in html as element id's etc.
-     *
-     * @param null $prefix
-     * @return string
+     * Creates a unique id for use in html as element id's etc.
      */
-    public function createUid($prefix = null)
+    public function createUid(?string $prefix = null): string
     {
-        return uniqid($prefix, false);
-
+        return uniqid((string)$prefix, false);
     }
 
-    public function createUniqid($prefix = null)
+    /**
+     * @deprecated use createUid()
+     */
+    public function createUniqid(?string $prefix = null): string
     {
         return $this->createUid($prefix);
     }
 
     /**
-     * Returns a poll regardless wether it is enabled or not
-     * @param $id
-     * @return Entry|null
+     * Returns a poll regardless whether it is enabled or not
+     *
+     * @deprecated use craft.poll.getPoll()
      */
-    public function getPoll($id)
+    public function getPoll(mixed $id): ?Entry
     {
         return Poll::$plugin->pollService->getPoll($id);
     }

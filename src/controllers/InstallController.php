@@ -1,45 +1,52 @@
 <?php
 /**
- * Created by PhpStorm
- * User: eapbachman
- * Date: 22/01/2020
+ * Poll plugin for Craft CMS 5.x
+ *
+ * @link      https://www.24hoursmedia.com
+ * @copyright Copyright (c) 2020 24hoursmedia
  */
 
 namespace twentyfourhoursmedia\poll\controllers;
 
 use Craft;
 use craft\web\Controller;
-use craft\web\Request;
+use twentyfourhoursmedia\poll\models\SetupReport;
 use twentyfourhoursmedia\poll\Poll;
-use yii\web\BadRequestHttpException;
+use yii\web\ForbiddenHttpException;
+use yii\web\Response;
 
+/**
+ * Runs the setup (creates the section, fields and entry types) from the Poll utility.
+ */
 class InstallController extends Controller
 {
-
-    protected array | bool | int $allowAnonymous = false;
+    protected array|bool|int $allowAnonymous = self::ALLOW_ANONYMOUS_NEVER;
 
     /**
-     * Handle a request going to our plugin's index action URL,
-     * e.g.: actions/poll/install
+     * Handles the setup form of the utility, e.g.: actions/poll/install/setup
      *
-     * @return mixed
-     * @throws BadRequestHttpException
+     * @throws ForbiddenHttpException
      * @throws \Throwable
-     * @throws \craft\errors\MissingComponentException
-     * @throws \craft\errors\SectionNotFoundException
-     * @throws \yii\web\ForbiddenHttpException
      */
-    public function actionSetup()
+    public function actionSetup(): Response
     {
         $this->requireCpRequest();
-        $this->requireAdmin(true);
-        if (Craft::$app->getRequest()->getMethod() !== 'POST') {
-            throw new BadRequestHttpException('Post method required');
+        $this->requirePostRequest();
+        $this->requireAdmin(false);
+
+        if (!Craft::$app->getConfig()->getGeneral()->allowAdminChanges) {
+            throw new ForbiddenHttpException('Administrative changes are not allowed in this environment.');
         }
 
-        $service  = Poll::getInstance()->installService;
-        $service->setup();
+        $report = new SetupReport();
+        $success = Poll::getInstance()->installService->setup($report);
+
+        if ($success) {
+            $this->setSuccessFlash(Craft::t('poll', 'Poll setup completed.'));
+        } else {
+            $this->setFailFlash(Craft::t('poll', 'Poll setup did not complete, see the report for details.'));
+        }
+
         return $this->redirectToPostedUrl();
     }
-
 }

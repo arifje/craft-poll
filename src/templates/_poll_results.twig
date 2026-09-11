@@ -1,44 +1,48 @@
-{# @var craft \craft\web\twig\variables\CraftVariable #}
 {# @var poll \craft\elements\Entry #}
-{# @var simple_results \twentyfourhoursmedia\poll\models\PollResults %}
-{# @var service \twentyfourhoursmedia\poll\services\PollService #}
+{# @var simple_results \twentyfourhoursmedia\poll\models\PollResults #}
+{# @var service \twentyfourhoursmedia\poll\services\Facade #}
 
-{% set element = poll %}
-{% set docTitle = 'Poll results' %}
-{% extends '_layouts/cp.twig' %}
+{% extends '_layouts/cp' %}
 
-{% block main %}
-    <small><a href="{{ url('poll') }}">&laquo; {{ 'Back' | t('poll') }}</a></small>
-    {{ parent() }}
-{% endblock %}
+{% set title = 'Results for poll'|t('poll') ~ ': ' ~ poll.title %}
+{% set crumbs = [
+    { label: 'Poll results'|t('poll'), url: url('poll') },
+] %}
 
 {% block content %}
-    <h1>{{ 'Results for poll' | t('poll') }} ID={{ poll.id }}: {{ poll.title }}</h1>
+    <p class="light">ID={{ poll.id }}</p>
 
-    <div>
-      <table class="table">
-          <tr>
-              <th>{{ 'Total votes' | t('poll') }}:</th>
-              <td>{{ simple_results.count }}</td>
-          </tr>
-          {% set by_answer = simple_results.byAnswer %}
-          {% for result_item in simple_results.byAnswer %}
-              {% set answer = result_item.answer %}
-              <tr>
-                  <th>{{ answer.label ?? '(unlabeled)' }}</th>
-                  <td>{{ result_item.count }} votes</td>
-              </tr>
-          {% endfor %}
-      </table>
-    </div>
+    <table class="data fullwidth">
+        <thead>
+            <tr>
+                <th scope="col">{{ 'Answer'|t('poll') }}</th>
+                <th scope="col">{{ 'Votes'|t('poll') }}</th>
+                <th scope="col">{{ 'Share'|t('poll') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result_item in simple_results.byAnswer %}
+                {% set answer = result_item.answer %}
+                <tr>
+                    <th scope="row">{{ answer.label ?? '(unlabeled)' }}</th>
+                    <td>{{ result_item.count }} {{ 'votes'|t('poll') }}</td>
+                    <td>{{ result_item.percent is null ? '–' : result_item.percent|round ~ '%' }}</td>
+                </tr>
+            {% endfor %}
+            <tr>
+                <th scope="row">{{ 'Total votes'|t('poll') }}</th>
+                <td>{{ simple_results.count }}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
 
-    <h2>{{ 'Data download' | t('poll') }}</h2>
-    <p>{{ 'You can download raw data here for further marketing analysis or targeting.' | t }}</p>
-    <div>
-        <form method="post" action="{{ actionUrl('poll/download/poll-data?id=' ~ poll.id) }}">
-            {{ csrfInput() }}
-            <button type="submit" class="btn submit">Download data in CSV format</button>
-        </form>
-    </div>
+    <hr>
 
+    <h2>{{ 'Data download'|t('poll') }}</h2>
+    <p>{{ 'You can download raw data here for further marketing analysis or targeting.'|t('poll') }}</p>
+    <form method="post" action="{{ actionUrl('poll/download/poll-data', { id: poll.id }) }}">
+        {{ csrfInput() }}
+        <button type="submit" class="btn submit">{{ 'Download data in CSV format'|t('poll') }}</button>
+    </form>
 {% endblock %}

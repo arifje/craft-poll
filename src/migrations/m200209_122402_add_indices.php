@@ -2,7 +2,6 @@
 
 namespace twentyfourhoursmedia\poll\migrations;
 
-use Craft;
 use craft\db\Migration;
 
 /**
@@ -13,33 +12,22 @@ class m200209_122402_add_indices extends Migration
     /**
      * @inheritdoc
      */
-    public function safeUp()
+    public function safeUp(): bool
     {
+        $this->createIndexIfMissing('{{%poll_pollanswer}}', ['userId', 'pollId'], false);
+        $this->createIndexIfMissing('{{%poll_pollanswer}}', ['dateCreated'], false);
 
-        $this->createIndex(
-            $this->db->getIndexName('{{%poll_pollanswer}}',['pollId', 'userId'],false),
-            '{{%poll_pollanswer}}', ['userId', 'pollId'], false
-        );
-        $this->createIndex(
-            $this->db->getIndexName('{{%poll_pollanswer}}',['dateCreated'],false),
-            '{{%poll_pollanswer}}', ['dateCreated'], false
-        );
+        return true;
     }
 
     /**
      * @inheritdoc
      */
-    public function safeDown()
+    public function safeDown(): bool
     {
-        $this->dropIndex(
-            $this->db->getIndexName('{{%poll_pollanswer}}',['dateCreated'],false),
-            '{{%poll_pollanswer}}', false
-        );
+        $this->dropIndexIfExists('{{%poll_pollanswer}}', ['dateCreated'], false);
+        $this->dropIndexIfExists('{{%poll_pollanswer}}', ['userId', 'pollId'], false);
 
-        $this->dropIndex(
-            $this->db->getIndexName('{{%poll_pollanswer}}',['pollId', 'userId'],false),
-            '{{%poll_pollanswer}}', false
-        );
-
+        return true;
     }
 }
