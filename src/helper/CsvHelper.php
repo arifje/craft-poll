@@ -25,14 +25,19 @@ class CsvHelper
             fwrite($fh, $bom = (chr(0xEF) . chr(0xBB) . chr(0xBF)));
         }
         if ($opts['with_header_row']) {
-            fputcsv($fh, $columns, ';', '"', '\\');
+            fputcsv($fh, $columns, ';', '"', '');
         }
         foreach ($data as $row) {
             $csvRow = [];
             foreach ($columns as $key) {
-                $csvRow[] = $row[$key] ?? null;
+                $value = $row[$key] ?? null;
+                // Spreadsheet applications interpret these prefixes even in quoted CSV cells.
+                if (is_string($value) && preg_match('/^[\x00-\x20]*[=+@-]|^[\t\r\n]/', $value)) {
+                    $value = "'" . $value;
+                }
+                $csvRow[] = $value;
             }
-            fputcsv($fh, $csvRow, ';', '"', '\\');
+            fputcsv($fh, $csvRow, ';', '"', '');
         }
     }
 

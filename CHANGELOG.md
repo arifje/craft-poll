@@ -1,5 +1,14 @@
 # Poll Changelog
 
+## 3.1.2 - 2026-10-07
+
+### Fixed
+- Neutralize spreadsheet formulas in CSV exports of submitted answer text and other string values.
+- Quote mixed-case database identifiers in result queries for PostgreSQL compatibility.
+- Return poll-level participant IDs when `user_id_only` is enabled.
+- Serialize authenticated submissions with Craft's mutex and recheck participation before saving.
+- Only mark participation and dispatch the submission event after a successful save.
+
 ## 3.1.1 - 2026-09-11
 
 ### Changed

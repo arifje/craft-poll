@@ -61,7 +61,7 @@ class ResultService extends Component
             '
             )
             ->from(PollAnswer::tableName() . ' a')
-            ->leftJoin('{{%users}} u', 'a.userId=u.id')
+            ->leftJoin('{{%users}} u', '[[a.userId]]=[[u.id]]')
             ->where(
                 new InCondition('a.pollId', 'IN', $ids)
             )
@@ -97,12 +97,12 @@ class ResultService extends Component
         }
 
         $model = new PollResults();
-        $model->count = (int)PollAnswer::find()->andWhere('pollId=:pollId', ['pollId' => $poll->id])->count();
+        $model->count = (int)PollAnswer::find()->andWhere(['pollId' => $poll->id])->count();
 
         $byAnswers = (new Query())
             ->select('answerId, count(id) as total')
             ->from(PollAnswer::tableName())
-            ->where('pollId=:pollId')->addParams(['pollId' => $poll->id])
+            ->where(['pollId' => $poll->id])
             ->addGroupBy(['answerId'])
             ->all();
         $indexedAnswers = array_reduce($byAnswers, static function ($carry, $item) {
@@ -123,22 +123,23 @@ class ResultService extends Component
         if ($opts['with_users']) {
             // array with key => user over all answers..
             $carryUsers = [];
+            $carryUserIds = [];
 
             // add users by answer
             foreach ($model->byAnswer as $byAnswer) {
                 $records = (new Query())
                     ->select('userId')
                     ->from(PollAnswer::tableName())
-                    ->where('pollId=:pollId')
-                    ->andWhere('answerId=:answerId')
-                    ->andWhere('userId IS NOT NULL')
+                    ->where(['pollId' => $poll->id])
+                    ->andWhere(['answerId' => $byAnswer->answer->id])
+                    ->andWhere(['not', ['userId' => null]])
                     ->addOrderBy('dateCreated DESC')
                     ->indexBy('userId')
                     ->limit($opts['limit_users'])
-                    ->addParams(['pollId' => $poll->id, 'answerId' => $byAnswer->answer->id])
                     ->all();
                 $userIds = array_keys($records);
                 $byAnswer->userIds = $userIds;
+                $carryUserIds += array_fill_keys($userIds, true);
                 if (!$opts['user_id_only']) {
                     $users = $this->getUsersFromIds($userIds);
                     $carryUsers+= $users;
@@ -152,12 +153,11 @@ class ResultService extends Component
             $records = (new Query())
                 ->select('userId')
                 ->from(PollAnswer::tableName())
-                ->where('pollId=:pollId')
-                ->andWhere(new InCondition('userId', 'IN', array_keys($carryUsers)))
+                ->where(['pollId' => $poll->id])
+                ->andWhere(new InCondition('userId', 'IN', array_keys($carryUserIds)))
                 ->addOrderBy('dateCreated DESC')
                 ->indexBy('userId')
                 ->limit($opts['limit_users'])
-                ->addParams(['pollId' => $poll->id])
                 ->all();
             $userIds = array_keys($records);
             $model->userIds = $userIds;

@@ -113,6 +113,22 @@ permanently deleted; votes of polls that were hard-deleted by Craft's garbage co
 garbage collection run. The **Block plugin uninstall** setting (on by default) prevents uninstalling the plugin,
 which would drop the votes table.
 
+## Upgrading to 3.1.2
+
+No schema migration is required and existing votes are preserved, including any historical duplicates.
+Authenticated submissions use Craft's mutex to serialize the participation check and save for each poll/user pair.
+Keep Craft's default database mutex, or configure a shared mutex across all web servers; a no-op or per-server
+mutex cannot prevent cross-server duplicates. Anonymous participation remains cookie-based.
+
+CSV export prefixes potentially executable spreadsheet text with an apostrophe; stored answer text is unchanged.
+Numeric poll lookups use the current frontend site (or the selected CP site), as introduced in 3.1.0.
+
+## Development
+
+`tests/regression.php` exercises exports, result queries and submission handling against installed Craft 5
+libraries and MySQL, using connection-local temporary tables. Run it in a development/test Craft Docker container with
+`php tests/regression.php /path/to/craft`. It does not install the plugin or modify persistent poll data.
+
 ## Upgrading from the Craft 4 version (2.x)
 
 1. Upgrade Craft to 5 first. Craft converts Matrix blocks to nested entries in place (element IDs are kept), so

@@ -227,13 +227,22 @@ class PollService extends Component
             return false;
         }
 
-        $this->addPollIdToCookie((int)$poll->id);
-
         $userId = $this->resolveUserId();
-        $request = Craft::$app->getRequest();
-        $ip = $request->getIsConsoleRequest() ? null : $request->getUserIP();
+        $mutex = Craft::$app->getMutex();
+        $lockName = "poll:vote:{$poll->id}:{$userId}";
+        if ($userId && !$mutex->acquire($lockName, 5)) {
+            return false;
+        }
 
-        foreach ($answers as $answer) {
+        try {
+            // Recheck under the shared lock: separate sessions can submit concurrently.
+            if ($this->hasParticipated($poll, $userId)) {
+                return false;
+            }
+
+            $request = Craft::$app->getRequest();
+            $ip = $request->getIsConsoleRequest() ? null : $request->getUserIP();
+            $answer = $answers[0];
             $answerText = $answerTexts[$answer->uid] ?? null;
             $record = new PollAnswer([
                 'pollId' => $poll->id,
@@ -244,8 +253,16 @@ class PollService extends Component
                 'answerText' => is_scalar($answerText) ? (string)$answerText : null,
                 'ip' => $ip ? (inet_pton($ip) ?: null) : null,
             ]);
-            $record->save();
+            if (!$record->save()) {
+                return false;
+            }
+        } finally {
+            if ($userId) {
+                $mutex->release($lockName);
+            }
         }
+
+        $this->addPollIdToCookie((int)$poll->id);
 
         $poll->trigger(PollEvents::POLL_SUBMITTED, new PollSubmittedEvent([
             'poll' => $poll,
